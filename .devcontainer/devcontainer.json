@@ -1,0 +1,30 @@
+// GitHub Codespaces: увесь стек СЕД ПУЕТ (демо) стартує сам після створення codespace.
+// Code → Codespaces → Create codespace (машина 4 ядра / 16 ГБ). Інтерфейс відкриється на порту 8080.
+{
+  "name": "СЕД ПУЕТ (демо-стенд)",
+  "image": "mcr.microsoft.com/devcontainers/base:ubuntu-24.04",
+  "features": {
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {}
+  },
+  "hostRequirements": {
+    "cpus": 4,
+    "memory": "16gb",
+    "storage": "32gb"
+  },
+  // Назовні лише інтерфейс; Keycloak доступний через нього ж (/auth), тож порт лишається приватним.
+  "forwardPorts": [8080],
+  "portsAttributes": {
+    "8080": {"label": "СЕД ПУЕТ", "onAutoForward": "openBrowser"},
+    "8180": {"onAutoForward": "ignore"},
+    "9001": {"onAutoForward": "ignore"}
+  },
+  "otherPortsAttributes": {"onAutoForward": "ignore"},
+  // Один раз: .env з випадковими секретами під адресу codespace + збірка образів.
+  "postCreateCommand": "bash .devcontainer/setup.sh",
+  // Під час кожного старту codespace: підняти стек, завантажити модель, проіндексувати корпус.
+  "postStartCommand": "bash .devcontainer/start.sh",
+  "customizations": {
+    "codespaces": {"openFiles": [".devcontainer/README.md"]},
+    "vscode": {"extensions": ["ms-python.python", "ms-azuretools.vscode-docker"]}
+  }
+}

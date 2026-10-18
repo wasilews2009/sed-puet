@@ -6,6 +6,10 @@
 
 Усе працює всередині периметра університету: LLM, ембединги, OCR, сховище файлів, SSO.
 
+[![Відкрити в GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/wasilews2009/sed-puet?quickstart=1)
+
+Демо одним кліком: кнопка вище запускає весь стек у GitHub Codespaces (див. [«Демо в GitHub Codespaces»](#демо-в-github-codespaces)).
+
 ## Що всередині
 
 | Шлях | Що це |
@@ -19,6 +23,7 @@
 | `constraints.txt` | точні версії Python-залежностей, з якими реліз перевірено |
 | `modules/` | вихідний код модулів: `db-schema`, `ingest-pipeline`, `rag-compliance`, `approval-routing`, `sed-app`, `sed-frontend` (з їхніми README і OpenAPI) |
 | `docs/smoke-test/` | знімки екрана з перевірки цього релізу |
+| `.devcontainer/` | конфігурація GitHub Codespaces: демо-стенд стартує сам після створення codespace |
 | `.github/workflows/ci.yml` | CI: тести всіх модулів на PostgreSQL 16 + pgvector, тести і збірка інтерфейсу, збірка Docker-образів |
 
 ```
@@ -83,6 +88,34 @@ docker compose exec app python -m sed_rag.ingestion.cli ingest-manifest /opt/sed
 переносить упевнені в картку → «Нормативний аудит» → «Погодження»: сформувати і запустити маршрут → по черзі
 `head.kknit`, `vicerector`, `buh`, `rector`, `pfv` у розділі «На погодження» накладають візу з КЕП (на стенді —
 «Тестовий ключ стенду») → статус «Погоджено», 5 чинних підписів. `student` цього документа не бачить.
+
+## Демо в GitHub Codespaces
+
+Для показу системи без власного сервера натисніть кнопку **Open in GitHub Codespaces** вгорі
+(або на сторінці репозиторію Code → Codespaces → Create codespace). Далі все відбувається само:
+
+1. Codespaces створює віртуальну машину з 4 ядрами і 16 ГБ пам'яті (менша не підійде).
+2. `.devcontainer/setup.sh` генерує `.env` з випадковими секретами під адресу саме цього codespace
+   і збирає образи (перше створення займає 10–20 хвилин).
+3. `.devcontainer/start.sh` піднімає стек, завантажує модель і у фоні індексує нормативний корпус.
+   Після цього у браузері відкривається вкладка з інтерфейсом (порт 8080 у вкладці **Ports**).
+
+Вхід: «Увійти через SSO ПУЕТ», демо-користувачі з таблиці вище, пароль `demo`.
+
+Чим демо в Codespaces відрізняється від сервера:
+
+* Порт 8080 приватний: відкрити його може лише власник codespace, увійшовши в GitHub.
+  Keycloak працює на тому ж адресі під шляхом `/auth` (адмінка: `…/auth/admin`, логін `admin`,
+  пароль `KEYCLOAK_ADMIN_PASSWORD` з `.env`), тож окремий порт 8180 відкривати не треба.
+* LLM працює на процесорі через Ollama з компактною моделлю `gemma3:4b`, бо Mistral Small 24B потребує
+  ≥ 32 ГБ RAM. Розпізнавання реквізитів і аудит працюють, але повільніше і менш точно, ніж на сервері з GPU.
+  Іншу модель можна задати секретом Codespaces `SED_CODESPACES_LLM_MODEL` (Settings → Secrets → Codespaces) до створення codespace.
+* Безкоштовна квота GitHub на Codespaces обмежена (для машини з 4 ядрами це близько 30 годин на місяць,
+  плюс ліміт на диск). Зупиняйте codespace, коли ним не користуєтеся, і видаляйте після показу.
+* Демо-дані й ключі КЕП імітаційні (`SED_ROUTING_KEP_ALLOW_MOCK=true`): підписи не мають юридичної сили.
+
+Перезапустити стек у codespace: `bash .devcontainer/start.sh`; журнал індексації корпусу —
+`.devcontainer/corpus-index.log`.
 
 ## Доступ з інших комп'ютерів і TLS
 

@@ -36,3 +36,5 @@ modules/sed-frontend/e2e/.tmp-*
 .idea/
 .vscode/
 .DS_Store
+.corpus-indexed
+corpus-index.log

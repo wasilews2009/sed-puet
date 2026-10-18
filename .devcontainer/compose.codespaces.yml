@@ -1,0 +1,15 @@
+# Доповнення docker-compose.yml для GitHub Codespaces (підключається через COMPOSE_FILE у .env, див. setup.sh).
+# Codespaces переадресовує в браузер один приватний порт (8080), тому Keycloak живе на тому ж origin під /auth:
+# окремий порт 8180 довелося б робити публічним, інакше браузер не дістанеться до нього з fetch().
+services:
+  keycloak:
+    environment:
+      KC_HTTP_RELATIVE_PATH: /auth
+      KC_PROXY_HEADERS: xforwarded
+  web:
+    environment:
+      SED_PUBLIC_SCHEME: ${SED_PUBLIC_SCHEME:-https}
+    volumes:
+      - ./.devcontainer/nginx.codespaces.conf.template:/etc/nginx/templates/default.conf.template:ro
+    depends_on:
+      keycloak: {condition: service_started}
