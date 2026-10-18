@@ -86,6 +86,12 @@ jobs:
       - uses: actions/checkout@v4
       - name: docker compose config
         run: cp .env.example .env && docker compose config -q
+      - name: Зовнішні образи доступні в реєстрах
+        # ловить зниклі або закриті образи (так quay.io/minio/minio почав віддавати 401)
+        run: |
+          for img in $(docker compose --profile cpu --profile gpu config --images | sort -u | grep -v '^puet/'); do
+            echo "== $img"; docker manifest inspect "$img" > /dev/null
+          done
       - name: Образ API
         run: docker build -f docker/app.Dockerfile -t puet/sed-app:ci .
       - name: Образ веб-інтерфейсу
