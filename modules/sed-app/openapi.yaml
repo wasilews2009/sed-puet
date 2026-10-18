@@ -1,0 +1,5181 @@
+openapi: 3.1.0
+info:
+  title: СЕД ПУЕТ — система електронного документообігу з ШІ
+  description: 'Єдиний API СЕД Полтавського університету економіки і торгівлі: реєстрація документів з OCR і вилученням реквізитів
+    за ДСТУ 4163:2020, нормативний аудит проєктів (RAG), маршрути погодження з КЕП, ручна валідація результатів ШІ (confidence
+    < 0.85). ШІ є асистентом: юридичної сили документ набуває лише після накладання КЕП посадовою особою.'
+  version: 0.1.0
+paths:
+  /api/v1/auth/config:
+    get:
+      tags:
+      - Автентифікація
+      summary: 'Як входити: Keycloak (OIDC + PKCE) чи dev-стенд'
+      operationId: auth_config_api_v1_auth_config_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthConfigOut'
+  /api/v1/auth/dev-users:
+    get:
+      tags:
+      - Автентифікація
+      summary: Демо-користувачі (лише dev-стенд)
+      operationId: dev_users_api_v1_auth_dev_users_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: '#/components/schemas/DevUserOut'
+                type: array
+                title: Response Dev Users Api V1 Auth Dev Users Get
+  /api/v1/auth/dev-login:
+    post:
+      tags:
+      - Автентифікація
+      summary: Увійти демо-користувачем (лише dev-стенд)
+      operationId: dev_login_api_v1_auth_dev_login_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DevLoginIn'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenOut'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/me:
+    get:
+      tags:
+      - Автентифікація
+      summary: Поточний користувач, його ролі та права
+      operationId: me_api_v1_me_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MeOut'
+      security:
+      - HTTPBearer: []
+  /api/v1/dictionaries:
+    get:
+      tags:
+      - Довідники
+      summary: Підрозділи, види документів, підписи статусів українською
+      operationId: dictionaries_api_v1_dictionaries_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DictionariesOut'
+      security:
+      - HTTPBearer: []
+  /api/v1/documents:
+    get:
+      tags:
+      - Документи
+      summary: Документи, доступні користувачу
+      operationId: list_documents_api_v1_documents_get
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: q
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+            maxLength: 200
+          - type: 'null'
+          description: Пошук у заголовку, індексі, короткому змісті
+          title: Q
+        description: Пошук у заголовку, індексі, короткому змісті
+      - name: status
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - $ref: '#/components/schemas/DocumentStatus'
+          - type: 'null'
+          title: Status
+      - name: type_code
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+            maxLength: 64
+          - type: 'null'
+          title: Type Code
+      - name: org_unit_id
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+            format: uuid
+          - type: 'null'
+          title: Org Unit Id
+      - name: needs_review
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          description: Лише ті, що чекають ручної валідації ШІ
+          title: Needs Review
+        description: Лише ті, що чекають ручної валідації ШІ
+      - name: mine
+        in: query
+        required: false
+        schema:
+          type: boolean
+          description: Лише мої (я автор)
+          default: false
+          title: Mine
+        description: Лише мої (я автор)
+      - name: sort
+        in: query
+        required: false
+        schema:
+          $ref: '#/components/schemas/DocumentSort'
+          default: -updated_at
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 100
+          minimum: 1
+          default: 25
+          title: Limit
+      - name: offset
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 100000
+          minimum: 0
+          default: 0
+          title: Offset
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DocumentPage'
+        '401':
+          description: Немає або недійсний токен
+        '403':
+          description: Немає права на дію
+        '404':
+          description: Документ не знайдено або немає доступу
+        '409':
+          description: Картку змінив інший користувач
+        '422':
+          description: Некоректні дані
+  /api/v1/documents/{document_id}:
+    get:
+      tags:
+      - Документи
+      summary: 'Картка документа: реквізити ШІ, комплаєнс, маршрут, підписи, історія'
+      operationId: get_card_api_v1_documents__document_id__get
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: document_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Document Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DocumentCard'
+        '401':
+          description: Немає або недійсний токен
+        '403':
+          description: Немає права на дію
+        '404':
+          description: Документ не знайдено або немає доступу
+        '409':
+          description: Картку змінив інший користувач
+        '422':
+          description: Некоректні дані
+  /api/v1/documents/{document_id}/versions/{version_id}/file:
+    get:
+      tags:
+      - Документи
+      summary: Оригінал файлу версії (з перевіркою доступу і записом у журнал)
+      operationId: download_api_v1_documents__document_id__versions__version_id__file_get
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: document_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Document Id
+      - name: version_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Version Id
+      - name: inline
+        in: query
+        required: false
+        schema:
+          type: boolean
+          default: true
+          title: Inline
+      responses:
+        '200':
+          description: Successful Response
+        '401':
+          description: Немає або недійсний токен
+        '403':
+          description: Немає права на дію
+        '404':
+          description: Документ не знайдено або немає доступу
+        '409':
+          description: Картку змінив інший користувач
+        '422':
+          description: Некоректні дані
+  /api/v1/documents/{document_id}/fields/{field_id}/review:
+    post:
+      tags:
+      - Ручна валідація
+      summary: Підтвердити, виправити або відхилити реквізит, вилучений ШІ
+      description: 'Обов''язково для реквізитів з впевненістю < 0.85. Підтверджене значення потрапляє
+
+        в `documents.requisites` (картку); сирий вихід моделі лишається в `ai_extracted_fields`.'
+      operationId: review_field_api_v1_documents__document_id__fields__field_id__review_post
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: document_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Document Id
+      - name: field_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Field Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FieldReviewIn'
+      responses:
+        '204':
+          description: Successful Response
+        '401':
+          description: Немає або недійсний токен
+        '403':
+          description: Немає права на дію
+        '404':
+          description: Документ не знайдено або немає доступу
+        '409':
+          description: Картку змінив інший користувач
+        '422':
+          description: Некоректні дані
+  /api/v1/documents/{document_id}/requisites/accept-confident:
+    post:
+      tags:
+      - Ручна валідація
+      summary: Перенести в картку реквізити, вилучені ШІ з впевненістю ≥ 0.85
+      description: Значення з високою впевненістю не потребують перевірки, але в картку їх переносить людина.
+      operationId: accept_confident_api_v1_documents__document_id__requisites_accept_confident_post
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: document_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Document Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AcceptConfidentIn'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AcceptConfidentOut'
+        '401':
+          description: Немає або недійсний токен
+        '403':
+          description: Немає права на дію
+        '404':
+          description: Документ не знайдено або немає доступу
+        '409':
+          description: Картку змінив інший користувач
+        '422':
+          description: Некоректні дані
+  /api/v1/documents/{document_id}/requisites:
+    put:
+      tags:
+      - Ручна валідація
+      summary: Ввести реквізити вручну (ШІ не впорався або модель недоступна)
+      operationId: enter_requisites_api_v1_documents__document_id__requisites_put
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: document_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Document Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RequisitesIn'
+      responses:
+        '204':
+          description: Successful Response
+        '401':
+          description: Немає або недійсний токен
+        '403':
+          description: Немає права на дію
+        '404':
+          description: Документ не знайдено або немає доступу
+        '409':
+          description: Картку змінив інший користувач
+        '422':
+          description: Некоректні дані
+  /api/v1/documents/{document_id}/findings/{finding_id}/resolution:
+    post:
+      tags:
+      - Ручна валідація
+      summary: Розглянути зауваження комплаєнсу
+      operationId: resolve_finding_api_v1_documents__document_id__findings__finding_id__resolution_post
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: document_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Document Id
+      - name: finding_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Finding Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FindingResolutionIn'
+      responses:
+        '204':
+          description: Successful Response
+        '401':
+          description: Немає або недійсний токен
+        '403':
+          description: Немає права на дію
+        '404':
+          description: Документ не знайдено або немає доступу
+        '409':
+          description: Картку змінив інший користувач
+        '422':
+          description: Некоректні дані
+  /api/v1/documents/{document_id}/ai-runs/{run_id}/review:
+    post:
+      tags:
+      - Ручна валідація
+      summary: Підтвердити або відхилити результат ШІ в цілому (напр. звіт комплаєнсу)
+      operationId: review_run_api_v1_documents__document_id__ai_runs__run_id__review_post
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: document_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Document Id
+      - name: run_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Run Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RunReviewIn'
+      responses:
+        '204':
+          description: Successful Response
+        '401':
+          description: Немає або недійсний токен
+        '403':
+          description: Немає права на дію
+        '404':
+          description: Документ не знайдено або немає доступу
+        '409':
+          description: Картку змінив інший користувач
+        '422':
+          description: Некоректні дані
+  /api/v1/documents/{document_id}/compliance-checks:
+    post:
+      tags:
+      - Нормативний аудит
+      summary: Перевірити поточну версію на відповідність Статуту, положенням ПУЕТ і наказам МОН
+      description: 'Синхронний виклик графа LangGraph модуля `sed_rag` (хвилини на великих документах).
+
+        Результат пишеться в `ai_runs` + `compliance_*`; картка показує його з цитатами і статусами зауважень.'
+      operationId: run_compliance_api_v1_documents__document_id__compliance_checks_post
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: document_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Document Id
+      requestBody:
+        content:
+          application/json:
+            schema:
+              anyOf:
+              - $ref: '#/components/schemas/ComplianceRunIn'
+              - type: 'null'
+              title: Body
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+                title: Response Run Compliance Api V1 Documents  Document Id  Compliance Checks Post
+        '401':
+          description: Немає або недійсний токен
+        '403':
+          description: Немає права на дію
+        '404':
+          description: Документ не знайдено або немає доступу
+        '409':
+          description: Картку змінив інший користувач
+        '422':
+          description: Некоректні дані
+        '503':
+          description: Qdrant / LLM недоступні
+  /api/v1/review-queue:
+    get:
+      tags:
+      - Ручна валідація
+      summary: Результати ШІ з впевненістю < 0.85, які чекають мого рішення
+      operationId: review_queue_api_v1_review_queue_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: '#/components/schemas/ReviewQueueItem'
+                type: array
+                title: Response Review Queue Api V1 Review Queue Get
+      security:
+      - HTTPBearer: []
+  /api/v1/approvals/inbox:
+    get:
+      tags:
+      - Погодження
+      summary: Мої активні кроки погодження (візи, підписи)
+      operationId: inbox_api_v1_approvals_inbox_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: '#/components/schemas/sed_app__api__schemas__InboxItem'
+                type: array
+                title: Response Inbox Api V1 Approvals Inbox Get
+      security:
+      - HTTPBearer: []
+  /api/v1/documents/ingest:
+    post:
+      tags:
+      - Інжест документів
+      summary: Завантажити вхідний документ і вилучити реквізити (ДСТУ 4163:2020)
+      description: Зберігає оригінал у MinIO, розпізнає текст (текстовий шар PDF або Tesseract ukr+eng), вилучає реквізити
+        локальною LLM зі structured output і повертає їх із confidence score. Створюється картка документа в статусі «чернетка».
+        Реквізити з впевненістю < 0.85 потрапляють у чергу ручної валідації; юридичної сили документ ШІ не надає.
+      operationId: ingest_document_api_v1_documents_ingest_post
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Body_ingest_document_api_v1_documents_ingest_post'
+        required: true
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IngestResponse'
+        '401':
+          description: Немає або недійсний токен Keycloak
+        '403':
+          description: Немає права реєструвати документи підрозділу
+        '415':
+          description: Формат файлу не підтримується (перевіряється за вмістом)
+        '422':
+          description: Файл пошкоджено, захищено паролем, завеликий або невалідні поля форми
+        '503':
+          description: Сховище файлів недоступне
+      security:
+      - HTTPBearer: []
+  /api/v1/compliance/check:
+    post:
+      tags:
+      - Нормативний аудит
+      summary: Перевірити текст проєкту (без збереження)
+      description: 'Шукає релевантні пункти Статуту, положень ПУЕТ, законів і наказів МОН, оцінює кожен пункт
+
+        проєкту і повертає звіт з переліком пунктів актів, які можуть бути порушені. Підходить для
+
+        перевірки чернетки в редакторі чи проєкту, згенерованого асистентом; у БД нічого не пише.'
+      operationId: check_text_api_v1_compliance_check_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CheckTextRequest'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ComplianceReport'
+        '401':
+          description: Немає або недійсний токен
+        '403':
+          description: Немає доступу
+        '422':
+          description: Некоректний запит
+        '503':
+          description: Векторна БД, сервер ембедингів або БД недоступні
+      security:
+      - HTTPBearer: []
+  /api/v1/regulations/search:
+    get:
+      tags:
+      - Нормативний корпус
+      summary: Гібридний пошук пунктів актів
+      operationId: search_api_v1_regulations_search_get
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: q
+        in: query
+        required: true
+        schema:
+          type: string
+          minLength: 3
+          maxLength: 2000
+          title: Q
+      - name: as_of
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+            format: date
+          - type: 'null'
+          title: As Of
+      - name: k
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 30
+          minimum: 1
+          default: 10
+          title: K
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SearchResponse'
+        '401':
+          description: Немає або недійсний токен
+        '403':
+          description: Немає доступу
+        '422':
+          description: Некоректний запит
+        '503':
+          description: Векторна БД, сервер ембедингів або БД недоступні
+  /api/v1/regulations:
+    post:
+      tags:
+      - Нормативний корпус
+      summary: Додати або переіндексувати акт
+      description: 'Сегментує текст на пункти, рахує ембединги і BM25, пише ревізію в `regulatory_*` і Qdrant.
+
+        Повторне надсилання того самого тексту нічого не змінює; змінений текст створює нову ревізію
+
+        (старі фрагменти лишаються для історичних цитат).'
+      operationId: ingest_act_api_v1_regulations_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/IngestActRequest'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IngestActResponse'
+        '401':
+          description: Немає або недійсний токен
+        '403':
+          description: Немає доступу
+        '422':
+          description: Некоректний запит
+        '503':
+          description: Векторна БД, сервер ембедингів або БД недоступні
+      security:
+      - HTTPBearer: []
+  /api/v1/regulations/{source_id}/status:
+    put:
+      tags:
+      - Нормативний корпус
+      summary: Змінити статус / строки чинності акта
+      description: 'Напр. акт скасовано: нові перевірки перестають його цитувати як чинний, а посилання на нього
+
+        в проєктах стають зауваженням «посилання на нечинний акт».'
+      operationId: set_status_api_v1_regulations__source_id__status_put
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: source_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Source Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ActIn'
+      responses:
+        '204':
+          description: Successful Response
+        '401':
+          description: Немає або недійсний токен
+        '403':
+          description: Немає доступу
+        '422':
+          description: Некоректний запит
+        '503':
+          description: Векторна БД, сервер ембедингів або БД недоступні
+  /api/v1/documents/{document_id}/route-preview:
+    post:
+      tags:
+      - Маршрути погодження
+      summary: Визначити посадових осіб, які мають завізувати документ (без збереження)
+      operationId: preview_api_v1_documents__document_id__route_preview_post
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: document_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Document Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RouteRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RoutePlanView'
+        '401':
+          description: Немає або недійсний токен Keycloak
+        '403':
+          description: Немає права на цю дію (не автор/ініціатор/учасник кроку, сервісний акаунт ШІ)
+        '404':
+          description: Документ, маршрут або крок не знайдено
+        '409':
+          description: 'Неприпустимо в поточному стані: етап ще не настав, рішення вже прийнято, посада вакантна, немає/кілька
+            шаблонів, відкриті критичні зауваження'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/documents/{document_id}/routes:
+    post:
+      tags:
+      - Маршрути погодження
+      summary: Створити маршрут погодження за шаблоном і (за замовчуванням) запустити його
+      operationId: create_route_api_v1_documents__document_id__routes_post
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: document_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Document Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RouteCreate'
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RouteView'
+        '401':
+          description: Немає або недійсний токен Keycloak
+        '403':
+          description: Немає права на цю дію (не автор/ініціатор/учасник кроку, сервісний акаунт ШІ)
+        '404':
+          description: Документ, маршрут або крок не знайдено
+        '409':
+          description: 'Неприпустимо в поточному стані: етап ще не настав, рішення вже прийнято, посада вакантна, немає/кілька
+            шаблонів, відкриті критичні зауваження'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/documents/{document_id}/route:
+    get:
+      tags:
+      - Маршрути погодження
+      summary: Останній маршрут документа
+      operationId: document_route_api_v1_documents__document_id__route_get
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: document_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Document Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RouteView'
+        '401':
+          description: Немає або недійсний токен Keycloak
+        '403':
+          description: Немає права на цю дію (не автор/ініціатор/учасник кроку, сервісний акаунт ШІ)
+        '404':
+          description: Документ, маршрут або крок не знайдено
+        '409':
+          description: 'Неприпустимо в поточному стані: етап ще не настав, рішення вже прийнято, посада вакантна, немає/кілька
+            шаблонів, відкриті критичні зауваження'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/routes/{route_id}:
+    get:
+      tags:
+      - Маршрути погодження
+      summary: Стан маршруту
+      operationId: get_route_api_v1_routes__route_id__get
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: route_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Route Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RouteView'
+        '401':
+          description: Немає або недійсний токен Keycloak
+        '403':
+          description: Немає права на цю дію (не автор/ініціатор/учасник кроку, сервісний акаунт ШІ)
+        '404':
+          description: Документ, маршрут або крок не знайдено
+        '409':
+          description: 'Неприпустимо в поточному стані: етап ще не настав, рішення вже прийнято, посада вакантна, немає/кілька
+            шаблонів, відкриті критичні зауваження'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/routes/{route_id}/start:
+    post:
+      tags:
+      - Маршрути погодження
+      summary: Запустити створений маршрут
+      operationId: start_route_api_v1_routes__route_id__start_post
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: route_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Route Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RouteStart'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RouteView'
+        '401':
+          description: Немає або недійсний токен Keycloak
+        '403':
+          description: Немає права на цю дію (не автор/ініціатор/учасник кроку, сервісний акаунт ШІ)
+        '404':
+          description: Документ, маршрут або крок не знайдено
+        '409':
+          description: 'Неприпустимо в поточному стані: етап ще не настав, рішення вже прийнято, посада вакантна, немає/кілька
+            шаблонів, відкриті критичні зауваження'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/routes/{route_id}/cancel:
+    post:
+      tags:
+      - Маршрути погодження
+      summary: Скасувати маршрут (ініціатор або автор)
+      operationId: cancel_route_api_v1_routes__route_id__cancel_post
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: route_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Route Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RouteCancel'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RouteView'
+        '401':
+          description: Немає або недійсний токен Keycloak
+        '403':
+          description: Немає права на цю дію (не автор/ініціатор/учасник кроку, сервісний акаунт ШІ)
+        '404':
+          description: Документ, маршрут або крок не знайдено
+        '409':
+          description: 'Неприпустимо в поточному стані: етап ще не настав, рішення вже прийнято, посада вакантна, немає/кілька
+            шаблонів, відкриті критичні зауваження'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/approval-tasks:
+    get:
+      tags:
+      - Маршрути погодження
+      summary: Мої документи на візування (активні кроки)
+      operationId: inbox_api_v1_approval_tasks_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: '#/components/schemas/sed_routing__views__InboxItem'
+                type: array
+                title: Response Inbox Api V1 Approval Tasks Get
+        '401':
+          description: Немає або недійсний токен Keycloak
+        '403':
+          description: Немає права на цю дію (не автор/ініціатор/учасник кроку, сервісний акаунт ШІ)
+        '404':
+          description: Документ, маршрут або крок не знайдено
+        '409':
+          description: 'Неприпустимо в поточному стані: етап ще не настав, рішення вже прийнято, посада вакантна, немає/кілька
+            шаблонів, відкриті критичні зауваження'
+      security:
+      - HTTPBearer: []
+  /api/v1/steps/{step_id}/signing-request:
+    get:
+      tags:
+      - Маршрути погодження
+      summary: 'Що підписувати: версія документа і її SHA-256'
+      operationId: signing_request_api_v1_steps__step_id__signing_request_get
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: step_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Step Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SigningRequestView'
+        '401':
+          description: Немає або недійсний токен Keycloak
+        '403':
+          description: Немає права на цю дію (не автор/ініціатор/учасник кроку, сервісний акаунт ШІ)
+        '404':
+          description: Документ, маршрут або крок не знайдено
+        '409':
+          description: 'Неприпустимо в поточному стані: етап ще не настав, рішення вже прийнято, посада вакантна, немає/кілька
+            шаблонів, відкриті критичні зауваження'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/steps/{step_id}/sign:
+    post:
+      tags:
+      - Маршрути погодження
+      summary: Завізувати крок із КЕП; наступний етап активується лише після валідного підпису
+      operationId: sign_step_api_v1_steps__step_id__sign_post
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: step_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Step Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SignRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RouteView'
+        '401':
+          description: Немає або недійсний токен Keycloak
+        '403':
+          description: Немає права на цю дію (не автор/ініціатор/учасник кроку, сервісний акаунт ШІ)
+        '404':
+          description: Документ, маршрут або крок не знайдено
+        '409':
+          description: 'Неприпустимо в поточному стані: етап ще не настав, рішення вже прийнято, посада вакантна, немає/кілька
+            шаблонів, відкриті критичні зауваження'
+        '422':
+          description: Підпис КЕП не пройшов перевірку (причина в detail)
+  /api/v1/steps/{step_id}/decision:
+    post:
+      tags:
+      - Маршрути погодження
+      summary: Відхилити крок (з причиною) або погодити крок, що не потребує КЕП
+      operationId: decide_step_api_v1_steps__step_id__decision_post
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: step_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Step Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StepDecision'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RouteView'
+        '401':
+          description: Немає або недійсний токен Keycloak
+        '403':
+          description: Немає права на цю дію (не автор/ініціатор/учасник кроку, сервісний акаунт ШІ)
+        '404':
+          description: Документ, маршрут або крок не знайдено
+        '409':
+          description: 'Неприпустимо в поточному стані: етап ще не настав, рішення вже прийнято, посада вакантна, немає/кілька
+            шаблонів, відкриті критичні зауваження'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/kep/challenges:
+    post:
+      tags:
+      - Ключі підпису
+      summary: Отримати виклик для доказу володіння ключем КЕП
+      operationId: challenge_api_v1_kep_challenges_post
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChallengeView'
+        '401':
+          description: Немає або недійсний токен Keycloak
+        '403':
+          description: Не власник ключа і не адміністратор ключів
+        '404':
+          description: Ключ не знайдено або внутрішній ЦСК вимкнено
+        '422':
+          description: Підпис або сертифікат не пройшли перевірку; надіслано файл з особистим ключем
+      security:
+      - HTTPBearer: []
+  /api/v1/kep/keys:
+    post:
+      tags:
+      - Ключі підпису
+      summary: Закріпити за собою ключ КЕП (підпис виклику; файл-ключ на сервер не передається)
+      operationId: register_key_api_v1_kep_keys_post
+      security:
+      - HTTPBearer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/KeyRegisterRequest'
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/KeyBindingView'
+        '401':
+          description: Немає або недійсний токен Keycloak
+        '403':
+          description: Не власник ключа і не адміністратор ключів
+        '404':
+          description: Ключ не знайдено або внутрішній ЦСК вимкнено
+        '422':
+          description: Підпис або сертифікат не пройшли перевірку; надіслано файл з особистим ключем
+    get:
+      tags:
+      - Ключі підпису
+      summary: Мої ключі підпису
+      operationId: my_keys_api_v1_kep_keys_get
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: include_revoked
+        in: query
+        required: false
+        schema:
+          type: boolean
+          default: false
+          title: Include Revoked
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/KeyBindingView'
+                title: Response My Keys Api V1 Kep Keys Get
+        '401':
+          description: Немає або недійсний токен Keycloak
+        '403':
+          description: Не власник ключа і не адміністратор ключів
+        '404':
+          description: Ключ не знайдено або внутрішній ЦСК вимкнено
+        '422':
+          description: Підпис або сертифікат не пройшли перевірку; надіслано файл з особистим ключем
+  /api/v1/kep/keys/{binding_id}/revoke:
+    post:
+      tags:
+      - Ключі підпису
+      summary: Відкріпити ключ (власник або адміністратор ключів)
+      operationId: revoke_key_api_v1_kep_keys__binding_id__revoke_post
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: binding_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Binding Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/KeyRevokeRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/KeyBindingView'
+        '401':
+          description: Немає або недійсний токен Keycloak
+        '403':
+          description: Не власник ключа і не адміністратор ключів
+        '404':
+          description: Ключ не знайдено або внутрішній ЦСК вимкнено
+        '422':
+          description: Підпис або сертифікат не пройшли перевірку; надіслано файл з особистим ключем
+  /api/v1/kep/certificates/inspect:
+    post:
+      tags:
+      - Ключі підпису
+      summary: 'Перевірити сертифікат (.cer/.crt/.pem): власник, КНЕДП, строк, РНОКПП (маскований)'
+      operationId: inspect_certificate_api_v1_kep_certificates_inspect_post
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Body_inspect_certificate_api_v1_kep_certificates_inspect_post'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CertificateCheckView'
+        '401':
+          description: Немає або недійсний токен Keycloak
+        '403':
+          description: Не власник ключа і не адміністратор ключів
+        '404':
+          description: Ключ не знайдено або внутрішній ЦСК вимкнено
+        '422':
+          description: Підпис або сертифікат не пройшли перевірку; надіслано файл з особистим ключем
+      security:
+      - HTTPBearer: []
+  /api/v1/kep/signatures/verify:
+    post:
+      tags:
+      - Ключі підпису
+      summary: Перевірити підпис CAdES над SHA-256 (без прийняття візи)
+      operationId: verify_signature_api_v1_kep_signatures_verify_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SignatureVerifyRequest'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SignatureVerifyView'
+        '401':
+          description: Немає або недійсний токен Keycloak
+        '403':
+          description: Не власник ключа і не адміністратор ключів
+        '404':
+          description: Ключ не знайдено або внутрішній ЦСК вимкнено
+        '422':
+          description: Підпис або сертифікат не пройшли перевірку; надіслано файл з особистим ключем
+      security:
+      - HTTPBearer: []
+  /api/v1/kep/internal/ca.pem:
+    get:
+      tags:
+      - Ключі підпису
+      summary: Ланцюжок сертифікатів внутрішнього ЦСК АІ-СЕД ПУЕТ
+      operationId: ca_chain_api_v1_kep_internal_ca_pem_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/x-pem-file: {}
+  /api/v1/kep/internal/crl:
+    get:
+      tags:
+      - Ключі підпису
+      summary: Список відкликаних внутрішніх сертифікатів (CRL, DER)
+      operationId: crl_api_v1_kep_internal_crl_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/pkix-crl: {}
+  /api/v1/kep/internal/certificates/csr:
+    post:
+      tags:
+      - Ключі підпису
+      summary: Отримати внутрішній сертифікат за CSR (ключ згенеровано на вашому комп'ютері)
+      operationId: enroll_csr_api_v1_kep_internal_certificates_csr_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CsrEnrollRequest'
+        required: true
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InternalCertView'
+        '401':
+          description: Немає або недійсний токен Keycloak
+        '403':
+          description: Не власник ключа і не адміністратор ключів
+        '404':
+          description: Ключ не знайдено або внутрішній ЦСК вимкнено
+        '422':
+          description: Підпис або сертифікат не пройшли перевірку; надіслано файл з особистим ключем
+      security:
+      - HTTPBearer: []
+  /api/v1/kep/internal/key-file:
+    post:
+      tags:
+      - Ключі підпису
+      summary: Згенерувати внутрішній файл-ключ (PKCS#12, видається один раз)
+      operationId: key_file_api_v1_kep_internal_key_file_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/KeyFileRequest'
+        required: true
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/x-pkcs12: {}
+        '401':
+          description: Немає або недійсний токен Keycloak
+        '403':
+          description: Не власник ключа і не адміністратор ключів
+        '404':
+          description: Ключ не знайдено або внутрішній ЦСК вимкнено
+        '422':
+          description: Підпис або сертифікат не пройшли перевірку; надіслано файл з особистим ключем
+      security:
+      - HTTPBearer: []
+  /api/v1/kep/internal/certificates/{serial}/revoke:
+    post:
+      tags:
+      - Ключі підпису
+      summary: Відкликати внутрішній сертифікат (власник або адміністратор ключів)
+      operationId: revoke_internal_api_v1_kep_internal_certificates__serial__revoke_post
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: serial
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Serial
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/KeyRevokeRequest'
+      responses:
+        '204':
+          description: Successful Response
+        '401':
+          description: Немає або недійсний токен Keycloak
+        '403':
+          description: Не власник ключа і не адміністратор ключів
+        '404':
+          description: Ключ не знайдено або внутрішній ЦСК вимкнено
+        '422':
+          description: Підпис або сертифікат не пройшли перевірку; надіслано файл з особистим ключем
+components:
+  schemas:
+    AcceptConfidentIn:
+      properties:
+        row_version:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Row Version
+      additionalProperties: false
+      type: object
+      title: AcceptConfidentIn
+    AcceptConfidentOut:
+      properties:
+        accepted:
+          type: integer
+          title: Accepted
+      type: object
+      required:
+      - accepted
+      title: AcceptConfidentOut
+    AccessLevel:
+      type: string
+      enum:
+      - public
+      - internal
+      - restricted
+      - personal_data
+      title: AccessLevel
+    ActIn:
+      properties:
+        title:
+          type: string
+          maxLength: 1024
+          minLength: 3
+          title: Title
+        short_title:
+          anyOf:
+          - type: string
+            maxLength: 256
+          - type: 'null'
+          title: Short Title
+          examples:
+          - Статут ПУЕТ
+        level:
+          $ref: '#/components/schemas/RegulatoryLevel'
+        issuer:
+          type: string
+          maxLength: 256
+          minLength: 2
+          title: Issuer
+        status:
+          $ref: '#/components/schemas/RegulatoryStatus'
+          default: in_force
+        doc_number:
+          anyOf:
+          - type: string
+            maxLength: 64
+          - type: 'null'
+          title: Doc Number
+        adopted_on:
+          anyOf:
+          - type: string
+            format: date
+          - type: 'null'
+          title: Adopted On
+        effective_from:
+          anyOf:
+          - type: string
+            format: date
+          - type: 'null'
+          title: Effective From
+        effective_to:
+          anyOf:
+          - type: string
+            format: date
+          - type: 'null'
+          title: Effective To
+        source_url:
+          anyOf:
+          - type: string
+            maxLength: 2048
+          - type: 'null'
+          title: Source Url
+      additionalProperties: false
+      type: object
+      required:
+      - title
+      - level
+      - issuer
+      title: ActIn
+    AiRunOut:
+      properties:
+        id:
+          type: string
+          format: uuid
+          title: Id
+        status:
+          $ref: '#/components/schemas/AiRunStatus'
+        model:
+          type: string
+          title: Model
+        confidence:
+          anyOf:
+          - type: string
+            pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          - type: 'null'
+          title: Confidence
+        requires_human_review:
+          type: boolean
+          title: Requires Human Review
+        review_status:
+          $ref: '#/components/schemas/HumanReviewStatus'
+        error_message:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Error Message
+        finished_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Finished At
+        warnings:
+          items:
+            type: string
+          type: array
+          title: Warnings
+      type: object
+      required:
+      - id
+      - status
+      - model
+      - confidence
+      - requires_human_review
+      - review_status
+      - error_message
+      - finished_at
+      title: AiRunOut
+    AiRunRefs:
+      properties:
+        ocr:
+          type: string
+          format: uuid
+          title: Ocr
+        extraction:
+          type: string
+          format: uuid
+          title: Extraction
+      type: object
+      required:
+      - ocr
+      - extraction
+      title: AiRunRefs
+    AiRunStatus:
+      type: string
+      enum:
+      - queued
+      - running
+      - succeeded
+      - failed
+      - cancelled
+      title: AiRunStatus
+    AssigneeOverride:
+      properties:
+        stage_no:
+          type: integer
+          minimum: 1.0
+          title: Stage No
+        ordinal:
+          type: integer
+          minimum: 1.0
+          title: Ordinal
+        user_id:
+          type: string
+          format: uuid
+          title: User Id
+      additionalProperties: false
+      type: object
+      required:
+      - stage_no
+      - ordinal
+      - user_id
+      title: AssigneeOverride
+    AuthConfigOut:
+      properties:
+        mode:
+          type: string
+          enum:
+          - keycloak
+          - dev
+          title: Mode
+        issuer:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Issuer
+        client_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Client Id
+        environment:
+          type: string
+          title: Environment
+      type: object
+      required:
+      - mode
+      - environment
+      title: AuthConfigOut
+    Body_ingest_document_api_v1_documents_ingest_post:
+      properties:
+        file:
+          type: string
+          contentMediaType: application/octet-stream
+          title: File
+          description: PDF або зображення (PNG, JPEG, TIFF, WEBP)
+        org_unit_id:
+          type: string
+          format: uuid
+          title: Org Unit Id
+          description: Підрозділ, у якому реєструється документ
+        direction:
+          anyOf:
+          - $ref: '#/components/schemas/DocumentDirection'
+          - type: 'null'
+          description: За замовчуванням — з виду документа
+        access_level:
+          anyOf:
+          - $ref: '#/components/schemas/AccessLevel'
+          - type: 'null'
+          description: Гриф доступу; може бути посилено автоматично
+        correspondent_name:
+          anyOf:
+          - type: string
+            maxLength: 512
+          - type: 'null'
+          title: Correspondent Name
+          description: Обов'язково для вхідних
+      type: object
+      required:
+      - file
+      - org_unit_id
+      title: Body_ingest_document_api_v1_documents_ingest_post
+    Body_inspect_certificate_api_v1_kep_certificates_inspect_post:
+      properties:
+        file:
+          type: string
+          contentMediaType: application/octet-stream
+          title: File
+      type: object
+      required:
+      - file
+      title: Body_inspect_certificate_api_v1_kep_certificates_inspect_post
+    CardPermissions:
+      properties:
+        review:
+          type: boolean
+          title: Review
+          description: Валідувати реквізити ШІ і розглядати зауваження комплаєнсу
+        check_compliance:
+          type: boolean
+          title: Check Compliance
+        start_route:
+          type: boolean
+          title: Start Route
+        my_active_step_id:
+          anyOf:
+          - type: string
+            format: uuid
+          - type: 'null'
+          title: My Active Step Id
+          description: Мій активний крок погодження за цим документом
+      type: object
+      required:
+      - review
+      - check_compliance
+      - start_route
+      - my_active_step_id
+      title: CardPermissions
+    CertificateCheckView:
+      properties:
+        level:
+          type: string
+          enum:
+          - qualified
+          - internal
+          - mock
+          - other
+          title: Level
+        level_uk:
+          type: string
+          title: Level Uk
+        certificate:
+          additionalProperties: true
+          type: object
+          title: Certificate
+        usable_for_signing:
+          type: boolean
+          title: Usable For Signing
+        problems:
+          items:
+            type: string
+          type: array
+          title: Problems
+        trusted_issuer:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Trusted Issuer
+          description: 'None — сертифікат ДСТУ: ланцюжок перевіряє провайдер КНЕДП'
+        registered_to_me:
+          type: boolean
+          title: Registered To Me
+      type: object
+      required:
+      - level
+      - level_uk
+      - certificate
+      - usable_for_signing
+      - problems
+      - trusted_issuer
+      - registered_to_me
+      title: CertificateCheckView
+      description: 'Розбір сертифіката. Особистий ключ сюди не надсилається: файл-ключ перевіряє `keytool inspect`.'
+    ChallengeView:
+      properties:
+        challenge_token:
+          type: string
+          title: Challenge Token
+        data_base64:
+          type: string
+          title: Data Base64
+          description: 'Байти виклику: підписати як файл (CAdES detached)'
+        data_text:
+          type: string
+          title: Data Text
+        content_sha256:
+          type: string
+          title: Content Sha256
+        expires_at:
+          type: string
+          format: date-time
+          title: Expires At
+        instructions_uk:
+          type: string
+          title: Instructions Uk
+      type: object
+      required:
+      - challenge_token
+      - data_base64
+      - data_text
+      - content_sha256
+      - expires_at
+      - instructions_uk
+      title: ChallengeView
+      description: Що підписати своїм ключем, щоб довести володіння ним (proof of possession).
+    CheckTextRequest:
+      properties:
+        text:
+          type: string
+          maxLength: 60000
+          minLength: 20
+          title: Text
+          description: Текст проєкту документа
+        as_of:
+          anyOf:
+          - type: string
+            format: date
+          - type: 'null'
+          title: As Of
+          description: Дата, на яку оцінюється чинність норм (за замовчуванням — сьогодні)
+      additionalProperties: false
+      type: object
+      required:
+      - text
+      title: CheckTextRequest
+    Citation:
+      properties:
+        rank:
+          type: integer
+          minimum: 1.0
+          title: Rank
+        chunk_id:
+          type: string
+          format: uuid
+          title: Chunk Id
+          description: regulatory_chunks.id = point id у Qdrant
+        source_id:
+          type: string
+          format: uuid
+          title: Source Id
+        source_title:
+          type: string
+          title: Source Title
+        source_short_title:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Source Short Title
+        doc_number:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Doc Number
+        issuer:
+          type: string
+          title: Issuer
+        level:
+          $ref: '#/components/schemas/RegulatoryLevel'
+        source_status:
+          $ref: '#/components/schemas/RegulatoryStatus'
+          description: Статус акта на момент перевірки
+        section_ref:
+          type: string
+          title: Section Ref
+          examples:
+          - розд. 7, п. 7.1.3
+        citation_label:
+          type: string
+          title: Citation Label
+          examples:
+          - Статут ПУЕТ, п. 7.1.3
+        quoted_text:
+          type: string
+          title: Quoted Text
+          description: Дослівна цитата з фрагмента акта
+        quote_verified:
+          type: boolean
+          title: Quote Verified
+          description: Цитату буквально знайдено у фрагменті корпусу
+        is_sample:
+          type: boolean
+          title: Is Sample
+          description: Демонстраційний текст акта, не офіційна редакція
+          default: false
+        dense_score:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Dense Score
+        sparse_score:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Sparse Score
+        fused_score:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Fused Score
+        rerank_score:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Rerank Score
+      type: object
+      required:
+      - rank
+      - chunk_id
+      - source_id
+      - source_title
+      - source_short_title
+      - doc_number
+      - issuer
+      - level
+      - source_status
+      - section_ref
+      - citation_label
+      - quoted_text
+      - quote_verified
+      - dense_score
+      - sparse_score
+      - fused_score
+      - rerank_score
+      title: Citation
+    CitationOut:
+      properties:
+        rank:
+          type: integer
+          title: Rank
+        citation_label:
+          type: string
+          title: Citation Label
+        source_title:
+          type: string
+          title: Source Title
+        section_ref:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Section Ref
+        quoted_text:
+          type: string
+          title: Quoted Text
+        quote_verified:
+          type: boolean
+          title: Quote Verified
+        source_status:
+          $ref: '#/components/schemas/RegulatoryStatus'
+      type: object
+      required:
+      - rank
+      - citation_label
+      - source_title
+      - section_ref
+      - quoted_text
+      - quote_verified
+      - source_status
+      title: CitationOut
+    ComplianceOut:
+      properties:
+        check_id:
+          type: string
+          format: uuid
+          title: Check Id
+        run:
+          $ref: '#/components/schemas/AiRunOut'
+        document_version_id:
+          type: string
+          format: uuid
+          title: Document Version Id
+        verdict:
+          $ref: '#/components/schemas/ComplianceVerdict'
+        summary:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Summary
+        regulations_as_of:
+          type: string
+          format: date
+          title: Regulations As Of
+        sources_considered:
+          type: integer
+          title: Sources Considered
+        created_at:
+          type: string
+          format: date-time
+          title: Created At
+        review_reasons:
+          items:
+            type: string
+          type: array
+          title: Review Reasons
+        findings:
+          items:
+            $ref: '#/components/schemas/FindingOut'
+          type: array
+          title: Findings
+      type: object
+      required:
+      - check_id
+      - run
+      - document_version_id
+      - verdict
+      - summary
+      - regulations_as_of
+      - sources_considered
+      - created_at
+      - review_reasons
+      - findings
+      title: ComplianceOut
+    ComplianceReport:
+      properties:
+        verdict:
+          $ref: '#/components/schemas/ComplianceVerdict'
+        verdict_label:
+          type: string
+          title: Verdict Label
+        summary:
+          type: string
+          title: Summary
+        confidence:
+          type: string
+          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          title: Confidence
+        confidence_threshold:
+          type: string
+          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          title: Confidence Threshold
+          default: '0.85'
+        requires_human_review:
+          type: boolean
+          title: Requires Human Review
+        review_reasons:
+          items:
+            type: string
+          type: array
+          title: Review Reasons
+        regulations_as_of:
+          type: string
+          format: date
+          title: Regulations As Of
+        findings:
+          items:
+            $ref: '#/components/schemas/Finding'
+          type: array
+          title: Findings
+        violated_clauses:
+          items:
+            $ref: '#/components/schemas/ViolatedClause'
+          type: array
+          title: Violated Clauses
+          description: Перелік конкретних пунктів актів, які можуть бути порушені
+        provisions:
+          items:
+            $ref: '#/components/schemas/ProvisionCoverage'
+          type: array
+          title: Provisions
+        sources_considered:
+          type: integer
+          title: Sources Considered
+        retrieval_config:
+          additionalProperties: true
+          type: object
+          title: Retrieval Config
+        model:
+          additionalProperties:
+            type: string
+          type: object
+          title: Model
+        warnings:
+          items:
+            type: string
+          type: array
+          title: Warnings
+        disclaimer:
+          type: string
+          title: Disclaimer
+          default: Звіт сформовано ШІ-асистентом і він не має юридичної сили. Остаточне рішення щодо відповідності приймає
+            відповідальна особа під час погодження і накладання КЕП.
+        ai_run_id:
+          anyOf:
+          - type: string
+            format: uuid
+          - type: 'null'
+          title: Ai Run Id
+        check_id:
+          anyOf:
+          - type: string
+            format: uuid
+          - type: 'null'
+          title: Check Id
+        document_version_id:
+          anyOf:
+          - type: string
+            format: uuid
+          - type: 'null'
+          title: Document Version Id
+      type: object
+      required:
+      - verdict
+      - verdict_label
+      - summary
+      - confidence
+      - requires_human_review
+      - review_reasons
+      - regulations_as_of
+      - findings
+      - violated_clauses
+      - provisions
+      - sources_considered
+      - retrieval_config
+      - model
+      title: ComplianceReport
+    ComplianceRunIn:
+      properties:
+        as_of:
+          anyOf:
+          - type: string
+            format: date
+          - type: 'null'
+          title: As Of
+          description: Дата, на яку оцінюється чинність норм
+      additionalProperties: false
+      type: object
+      title: ComplianceRunIn
+    ComplianceVerdict:
+      type: string
+      enum:
+      - compliant
+      - issues_found
+      - non_compliant
+      - inconclusive
+      title: ComplianceVerdict
+    Coverage:
+      type: string
+      enum:
+      - strong
+      - weak
+      - none
+      title: Coverage
+    CsrEnrollRequest:
+      properties:
+        csr_pem:
+          type: string
+          maxLength: 20000
+          minLength: 100
+          title: Csr Pem
+          description: PKCS#10, згенерований `keytool new-key` на комп'ютері користувача
+      additionalProperties: false
+      type: object
+      required:
+      - csr_pem
+      title: CsrEnrollRequest
+    DevLoginIn:
+      properties:
+        user_id:
+          type: string
+          format: uuid
+          title: User Id
+      additionalProperties: false
+      type: object
+      required:
+      - user_id
+      title: DevLoginIn
+    DevUserOut:
+      properties:
+        id:
+          type: string
+          format: uuid
+          title: Id
+        display_name:
+          type: string
+          title: Display Name
+        email:
+          type: string
+          title: Email
+        roles:
+          items:
+            type: string
+          type: array
+          title: Roles
+      type: object
+      required:
+      - id
+      - display_name
+      - email
+      - roles
+      title: DevUserOut
+    DictionariesOut:
+      properties:
+        org_units:
+          items:
+            $ref: '#/components/schemas/OrgUnitOut'
+          type: array
+          title: Org Units
+        document_types:
+          items:
+            $ref: '#/components/schemas/DocumentTypeOut'
+          type: array
+          title: Document Types
+        labels:
+          additionalProperties:
+            additionalProperties:
+              type: string
+            type: object
+          type: object
+          title: Labels
+        field_labels:
+          additionalProperties:
+            type: string
+          type: object
+          title: Field Labels
+        confidence_threshold:
+          type: string
+          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          title: Confidence Threshold
+          default: '0.85'
+        modules:
+          $ref: '#/components/schemas/ModulesOut'
+      type: object
+      required:
+      - org_units
+      - document_types
+      - labels
+      - field_labels
+      - modules
+      title: DictionariesOut
+    DocumentCard:
+      properties:
+        id:
+          type: string
+          format: uuid
+          title: Id
+        title:
+          type: string
+          title: Title
+        summary:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Summary
+        document_type:
+          $ref: '#/components/schemas/DocumentTypeOut'
+        status:
+          $ref: '#/components/schemas/DocumentStatus'
+        direction:
+          $ref: '#/components/schemas/DocumentDirection'
+        access_level:
+          $ref: '#/components/schemas/AccessLevel'
+        org_unit:
+          $ref: '#/components/schemas/OrgUnitOut'
+        author:
+          $ref: '#/components/schemas/PersonRef'
+        registration_number:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Registration Number
+        registration_date:
+          anyOf:
+          - type: string
+            format: date
+          - type: 'null'
+          title: Registration Date
+        correspondent_name:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Correspondent Name
+        correspondent_number:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Correspondent Number
+        correspondent_date:
+          anyOf:
+          - type: string
+            format: date
+          - type: 'null'
+          title: Correspondent Date
+        due_date:
+          anyOf:
+          - type: string
+            format: date
+          - type: 'null'
+          title: Due Date
+        requisites:
+          additionalProperties: true
+          type: object
+          title: Requisites
+          description: Реквізити, підтверджені людиною
+        created_at:
+          type: string
+          format: date-time
+          title: Created At
+        updated_at:
+          type: string
+          format: date-time
+          title: Updated At
+        row_version:
+          type: integer
+          title: Row Version
+        current_version_id:
+          anyOf:
+          - type: string
+            format: uuid
+          - type: 'null'
+          title: Current Version Id
+        versions:
+          items:
+            $ref: '#/components/schemas/VersionOut'
+          type: array
+          title: Versions
+        extraction:
+          anyOf:
+          - $ref: '#/components/schemas/ExtractionOut'
+          - type: 'null'
+        compliance:
+          anyOf:
+          - $ref: '#/components/schemas/ComplianceOut'
+          - type: 'null'
+        route:
+          anyOf:
+          - $ref: '#/components/schemas/RouteOut'
+          - type: 'null'
+        signatures:
+          items:
+            $ref: '#/components/schemas/SignatureOut'
+          type: array
+          title: Signatures
+        history:
+          items:
+            $ref: '#/components/schemas/StatusChangeOut'
+          type: array
+          title: History
+        permissions:
+          $ref: '#/components/schemas/CardPermissions'
+        disclaimer:
+          type: string
+          title: Disclaimer
+          default: Реквізити і зауваження сформовано ШІ-асистентом; юридичної сили вони не мають. Рішення ухвалює посадова
+            особа, накладаючи КЕП.
+      type: object
+      required:
+      - id
+      - title
+      - summary
+      - document_type
+      - status
+      - direction
+      - access_level
+      - org_unit
+      - author
+      - registration_number
+      - registration_date
+      - correspondent_name
+      - correspondent_number
+      - correspondent_date
+      - due_date
+      - requisites
+      - created_at
+      - updated_at
+      - row_version
+      - current_version_id
+      - versions
+      - extraction
+      - compliance
+      - route
+      - signatures
+      - history
+      - permissions
+      title: DocumentCard
+    DocumentDirection:
+      type: string
+      enum:
+      - internal
+      - incoming
+      - outgoing
+      title: DocumentDirection
+    DocumentKind:
+      type: string
+      enum:
+      - order_main
+      - order_personnel
+      - order_students
+      - directive
+      - application
+      - memo
+      - report_memo
+      - explanatory_note
+      - letter
+      - protocol
+      - regulation
+      - other
+      title: DocumentKind
+    DocumentListItem:
+      properties:
+        id:
+          type: string
+          format: uuid
+          title: Id
+        title:
+          type: string
+          title: Title
+        document_type_code:
+          type: string
+          title: Document Type Code
+        document_type_name:
+          type: string
+          title: Document Type Name
+        status:
+          $ref: '#/components/schemas/DocumentStatus'
+        direction:
+          $ref: '#/components/schemas/DocumentDirection'
+        access_level:
+          $ref: '#/components/schemas/AccessLevel'
+        org_unit_id:
+          type: string
+          format: uuid
+          title: Org Unit Id
+        org_unit_name:
+          type: string
+          title: Org Unit Name
+        author_name:
+          type: string
+          title: Author Name
+        registration_number:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Registration Number
+        registration_date:
+          anyOf:
+          - type: string
+            format: date
+          - type: 'null'
+          title: Registration Date
+        created_at:
+          type: string
+          format: date-time
+          title: Created At
+        updated_at:
+          type: string
+          format: date-time
+          title: Updated At
+        ai_confidence:
+          anyOf:
+          - type: string
+            pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          - type: 'null'
+          title: Ai Confidence
+          description: Впевненість вилучення реквізитів поточної версії
+        needs_review:
+          type: boolean
+          title: Needs Review
+          description: Є реквізити або перевірки ШІ, що чекають ручної валідації
+        open_findings:
+          type: integer
+          title: Open Findings
+          description: Відкриті суттєві/критичні зауваження комплаєнсу
+        compliance_verdict:
+          anyOf:
+          - $ref: '#/components/schemas/ComplianceVerdict'
+          - type: 'null'
+      type: object
+      required:
+      - id
+      - title
+      - document_type_code
+      - document_type_name
+      - status
+      - direction
+      - access_level
+      - org_unit_id
+      - org_unit_name
+      - author_name
+      - registration_number
+      - registration_date
+      - created_at
+      - updated_at
+      - ai_confidence
+      - needs_review
+      - open_findings
+      - compliance_verdict
+      title: DocumentListItem
+    DocumentPage:
+      properties:
+        items:
+          items:
+            $ref: '#/components/schemas/DocumentListItem'
+          type: array
+          title: Items
+        total:
+          type: integer
+          title: Total
+        limit:
+          type: integer
+          title: Limit
+        offset:
+          type: integer
+          title: Offset
+      type: object
+      required:
+      - items
+      - total
+      - limit
+      - offset
+      title: DocumentPage
+    DocumentRequisites:
+      properties:
+        document_type:
+          $ref: '#/components/schemas/FieldResult_DocumentKind_'
+        document_date:
+          $ref: '#/components/schemas/FieldResult_date_'
+        registration_number:
+          $ref: '#/components/schemas/FieldResult_str_'
+        author:
+          $ref: '#/components/schemas/FieldResult_Person_'
+        title:
+          $ref: '#/components/schemas/FieldResult_str_'
+        summary:
+          $ref: '#/components/schemas/FieldResult_str_'
+        interested_parties:
+          $ref: '#/components/schemas/FieldResult_list_InterestedParty__'
+        document_type_label:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Document Type Label
+          readOnly: true
+        confidence:
+          type: string
+          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          title: Confidence
+          description: 'Впевненість документа = мінімум по реквізитах: один слабкий реквізит → ручна валідація.'
+          readOnly: true
+        requires_human_review:
+          type: boolean
+          title: Requires Human Review
+          readOnly: true
+      type: object
+      required:
+      - document_type
+      - document_date
+      - registration_number
+      - author
+      - title
+      - summary
+      - interested_parties
+      - document_type_label
+      - confidence
+      - requires_human_review
+      title: DocumentRequisites
+      description: Валідовані реквізити вхідного документа.
+    DocumentSort:
+      type: string
+      enum:
+      - -updated_at
+      - -created_at
+      - created_at
+      - title
+      title: DocumentSort
+    DocumentStatus:
+      type: string
+      enum:
+      - draft
+      - ai_review
+      - on_approval
+      - revision_required
+      - approved
+      - signed
+      - registered
+      - in_execution
+      - executed
+      - archived
+      - cancelled
+      title: DocumentStatus
+    DocumentTypeOut:
+      properties:
+        id:
+          type: string
+          format: uuid
+          title: Id
+        code:
+          type: string
+          title: Code
+        name:
+          type: string
+          title: Name
+        requires_kep:
+          type: boolean
+          title: Requires Kep
+      type: object
+      required:
+      - id
+      - code
+      - name
+      - requires_kep
+      title: DocumentTypeOut
+    DraftFragment:
+      properties:
+        provision_id:
+          type: string
+          title: Provision Id
+        provision_label:
+          type: string
+          title: Provision Label
+          examples:
+          - п. 2 розпорядчої частини
+        text:
+          type: string
+          title: Text
+        char_start:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Char Start
+          description: Зміщення в тексті проєкту; None — цитату не знайдено дослівно
+        char_end:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Char End
+      type: object
+      required:
+      - provision_id
+      - provision_label
+      - text
+      - char_start
+      - char_end
+      title: DraftFragment
+    ExtractedFieldOut:
+      properties:
+        id:
+          type: string
+          format: uuid
+          title: Id
+        key:
+          type: string
+          title: Key
+        label:
+          type: string
+          title: Label
+        extracted_value:
+          title: Extracted Value
+        validated_value:
+          title: Validated Value
+        confidence:
+          type: string
+          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          title: Confidence
+        requires_human_review:
+          type: boolean
+          title: Requires Human Review
+        review_status:
+          $ref: '#/components/schemas/HumanReviewStatus'
+        reviewed_by:
+          anyOf:
+          - $ref: '#/components/schemas/PersonRef'
+          - type: 'null'
+        reviewed_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Reviewed At
+        review_comment:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Review Comment
+        issues:
+          items:
+            type: string
+          type: array
+          title: Issues
+        page_no:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Page No
+      type: object
+      required:
+      - id
+      - key
+      - label
+      - extracted_value
+      - validated_value
+      - confidence
+      - requires_human_review
+      - review_status
+      - reviewed_by
+      - reviewed_at
+      - review_comment
+      - issues
+      - page_no
+      title: ExtractedFieldOut
+    ExtractionOut:
+      properties:
+        run:
+          $ref: '#/components/schemas/AiRunOut'
+        fields:
+          items:
+            $ref: '#/components/schemas/ExtractedFieldOut'
+          type: array
+          title: Fields
+        ocr:
+          anyOf:
+          - additionalProperties: true
+            type: object
+          - type: 'null'
+          title: Ocr
+          description: 'Сторінки OCR: джерело тексту і якість'
+        ocr_confidence:
+          anyOf:
+          - type: string
+            pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          - type: 'null'
+          title: Ocr Confidence
+      type: object
+      required:
+      - run
+      - fields
+      - ocr_confidence
+      title: ExtractionOut
+    FieldDecision:
+      type: string
+      enum:
+      - confirm
+      - correct
+      - reject
+      title: FieldDecision
+    FieldResult_DocumentKind_:
+      properties:
+        value:
+          anyOf:
+          - $ref: '#/components/schemas/DocumentKind'
+          - type: 'null'
+        confidence:
+          type: string
+          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          title: Confidence
+          description: Підсумкова впевненість, 0…1
+        evidence:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Evidence
+          description: Цитата з тексту, на якій ґрунтується значення
+        page_no:
+          anyOf:
+          - type: integer
+            minimum: 1.0
+          - type: 'null'
+          title: Page No
+        issues:
+          items:
+            type: string
+          type: array
+          title: Issues
+          description: Чому впевненість знижено
+        requires_human_review:
+          type: boolean
+          title: Requires Human Review
+          readOnly: true
+      type: object
+      required:
+      - confidence
+      - requires_human_review
+      title: FieldResult[DocumentKind]
+    FieldResult_Person_:
+      properties:
+        value:
+          anyOf:
+          - $ref: '#/components/schemas/Person'
+          - type: 'null'
+        confidence:
+          type: string
+          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          title: Confidence
+          description: Підсумкова впевненість, 0…1
+        evidence:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Evidence
+          description: Цитата з тексту, на якій ґрунтується значення
+        page_no:
+          anyOf:
+          - type: integer
+            minimum: 1.0
+          - type: 'null'
+          title: Page No
+        issues:
+          items:
+            type: string
+          type: array
+          title: Issues
+          description: Чому впевненість знижено
+        requires_human_review:
+          type: boolean
+          title: Requires Human Review
+          readOnly: true
+      type: object
+      required:
+      - confidence
+      - requires_human_review
+      title: FieldResult[Person]
+    FieldResult_date_:
+      properties:
+        value:
+          anyOf:
+          - type: string
+            format: date
+          - type: 'null'
+          title: Value
+        confidence:
+          type: string
+          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          title: Confidence
+          description: Підсумкова впевненість, 0…1
+        evidence:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Evidence
+          description: Цитата з тексту, на якій ґрунтується значення
+        page_no:
+          anyOf:
+          - type: integer
+            minimum: 1.0
+          - type: 'null'
+          title: Page No
+        issues:
+          items:
+            type: string
+          type: array
+          title: Issues
+          description: Чому впевненість знижено
+        requires_human_review:
+          type: boolean
+          title: Requires Human Review
+          readOnly: true
+      type: object
+      required:
+      - confidence
+      - requires_human_review
+      title: FieldResult[date]
+    FieldResult_list_InterestedParty__:
+      properties:
+        value:
+          anyOf:
+          - items:
+              $ref: '#/components/schemas/InterestedParty'
+            type: array
+          - type: 'null'
+          title: Value
+        confidence:
+          type: string
+          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          title: Confidence
+          description: Підсумкова впевненість, 0…1
+        evidence:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Evidence
+          description: Цитата з тексту, на якій ґрунтується значення
+        page_no:
+          anyOf:
+          - type: integer
+            minimum: 1.0
+          - type: 'null'
+          title: Page No
+        issues:
+          items:
+            type: string
+          type: array
+          title: Issues
+          description: Чому впевненість знижено
+        requires_human_review:
+          type: boolean
+          title: Requires Human Review
+          readOnly: true
+      type: object
+      required:
+      - confidence
+      - requires_human_review
+      title: FieldResult[list[InterestedParty]]
+    FieldResult_str_:
+      properties:
+        value:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Value
+        confidence:
+          type: string
+          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          title: Confidence
+          description: Підсумкова впевненість, 0…1
+        evidence:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Evidence
+          description: Цитата з тексту, на якій ґрунтується значення
+        page_no:
+          anyOf:
+          - type: integer
+            minimum: 1.0
+          - type: 'null'
+          title: Page No
+        issues:
+          items:
+            type: string
+          type: array
+          title: Issues
+          description: Чому впевненість знижено
+        requires_human_review:
+          type: boolean
+          title: Requires Human Review
+          readOnly: true
+      type: object
+      required:
+      - confidence
+      - requires_human_review
+      title: FieldResult[str]
+    FieldReviewIn:
+      properties:
+        decision:
+          $ref: '#/components/schemas/FieldDecision'
+        value:
+          title: Value
+          description: Нове значення для `correct` (рядок, дата YYYY-MM-DD, об'єкт особи…)
+        comment:
+          anyOf:
+          - type: string
+            maxLength: 2000
+          - type: 'null'
+          title: Comment
+        row_version:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Row Version
+          description: Версія картки, яку бачив оператор (оптимістичне блокування)
+      additionalProperties: false
+      type: object
+      required:
+      - decision
+      title: FieldReviewIn
+    Finding:
+      properties:
+        ordinal:
+          type: integer
+          minimum: 1.0
+          title: Ordinal
+        severity:
+          $ref: '#/components/schemas/FindingSeverity'
+        severity_label:
+          type: string
+          title: Severity Label
+        category:
+          $ref: '#/components/schemas/FindingCategory'
+        category_label:
+          type: string
+          title: Category Label
+        title:
+          type: string
+          title: Title
+        explanation:
+          type: string
+          title: Explanation
+        recommendation:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Recommendation
+        fragment:
+          $ref: '#/components/schemas/DraftFragment'
+        confidence:
+          type: string
+          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          title: Confidence
+        requires_human_review:
+          type: boolean
+          title: Requires Human Review
+        issues:
+          items:
+            type: string
+          type: array
+          title: Issues
+          description: Чому впевненість знижено
+        verifier:
+          anyOf:
+          - additionalProperties: true
+            type: object
+          - type: 'null'
+          title: Verifier
+          description: Висновок незалежної повторної перевірки
+        origin:
+          type: string
+          title: Origin
+          description: llm — висновок моделі; reference_check — детермінована перевірка посилань
+        citations:
+          items:
+            $ref: '#/components/schemas/Citation'
+          type: array
+          minItems: 1
+          title: Citations
+      type: object
+      required:
+      - ordinal
+      - severity
+      - severity_label
+      - category
+      - category_label
+      - title
+      - explanation
+      - recommendation
+      - fragment
+      - confidence
+      - requires_human_review
+      - origin
+      - citations
+      title: Finding
+    FindingCategory:
+      type: string
+      enum:
+      - contradiction
+      - outdated_reference
+      - missing_requisite
+      - dstu_formatting
+      - competence_violation
+      - deadline_violation
+      - personal_data
+      - other
+      title: FindingCategory
+    FindingOut:
+      properties:
+        id:
+          type: string
+          format: uuid
+          title: Id
+        ordinal:
+          type: integer
+          title: Ordinal
+        severity:
+          $ref: '#/components/schemas/FindingSeverity'
+        category:
+          $ref: '#/components/schemas/FindingCategory'
+        title:
+          type: string
+          title: Title
+        explanation:
+          type: string
+          title: Explanation
+        recommendation:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Recommendation
+        fragment_text:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Fragment Text
+        confidence:
+          type: string
+          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          title: Confidence
+        requires_human_review:
+          type: boolean
+          title: Requires Human Review
+        status:
+          $ref: '#/components/schemas/FindingStatus'
+        resolved_by:
+          anyOf:
+          - $ref: '#/components/schemas/PersonRef'
+          - type: 'null'
+        resolved_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Resolved At
+        resolution_comment:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Resolution Comment
+        citations:
+          items:
+            $ref: '#/components/schemas/CitationOut'
+          type: array
+          title: Citations
+      type: object
+      required:
+      - id
+      - ordinal
+      - severity
+      - category
+      - title
+      - explanation
+      - recommendation
+      - fragment_text
+      - confidence
+      - requires_human_review
+      - status
+      - resolved_by
+      - resolved_at
+      - resolution_comment
+      - citations
+      title: FindingOut
+    FindingResolutionIn:
+      properties:
+        status:
+          type: string
+          enum:
+          - accepted
+          - dismissed
+          - fixed
+          title: Status
+        comment:
+          anyOf:
+          - type: string
+            maxLength: 4000
+          - type: 'null'
+          title: Comment
+      additionalProperties: false
+      type: object
+      required:
+      - status
+      title: FindingResolutionIn
+    FindingSeverity:
+      type: string
+      enum:
+      - info
+      - minor
+      - major
+      - critical
+      title: FindingSeverity
+    FindingStatus:
+      type: string
+      enum:
+      - open
+      - accepted
+      - dismissed
+      - fixed
+      title: FindingStatus
+    HTTPValidationError:
+      properties:
+        detail:
+          items:
+            $ref: '#/components/schemas/ValidationError'
+          type: array
+          title: Detail
+      type: object
+      title: HTTPValidationError
+    HumanReviewStatus:
+      type: string
+      enum:
+      - not_required
+      - pending
+      - confirmed
+      - corrected
+      - rejected
+      title: HumanReviewStatus
+    IngestActRequest:
+      properties:
+        act:
+          $ref: '#/components/schemas/ActIn'
+        text:
+          type: string
+          maxLength: 3000000
+          minLength: 50
+          title: Text
+          description: Повний текст акта (UTF-8)
+        text_quality:
+          type: number
+          maximum: 1.0
+          minimum: 0.0
+          title: Text Quality
+          description: 1.0 — офіційний текст; < 1 — результат OCR
+          default: 1.0
+      additionalProperties: false
+      type: object
+      required:
+      - act
+      - text
+      title: IngestActRequest
+    IngestActResponse:
+      properties:
+        status:
+          $ref: '#/components/schemas/sed_rag__ingestion__service__IngestStatus'
+        source_id:
+          type: string
+          format: uuid
+          title: Source Id
+        index_revision:
+          type: integer
+          title: Index Revision
+        chunks:
+          type: integer
+          title: Chunks
+        sections:
+          items:
+            type: string
+          type: array
+          title: Sections
+      type: object
+      required:
+      - status
+      - source_id
+      - index_revision
+      - chunks
+      - sections
+      title: IngestActResponse
+    IngestResponse:
+      properties:
+        document_id:
+          type: string
+          format: uuid
+          title: Document Id
+        version_id:
+          type: string
+          format: uuid
+          title: Version Id
+        status:
+          $ref: '#/components/schemas/sed_ingest__domain__result__IngestStatus'
+        document_type_code:
+          type: string
+          title: Document Type Code
+          description: Код виду документа в довіднику СЕД, куди зараховано картку
+        direction:
+          $ref: '#/components/schemas/DocumentDirection'
+        access_level:
+          $ref: '#/components/schemas/AccessLevel'
+        file:
+          $ref: '#/components/schemas/StoredFileInfo'
+        ocr:
+          $ref: '#/components/schemas/OcrSummary'
+        requisites:
+          anyOf:
+          - $ref: '#/components/schemas/DocumentRequisites'
+          - type: 'null'
+          description: Реквізити за ДСТУ 4163:2020; null — модель недоступна, потрібне ручне введення
+        confidence:
+          type: string
+          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          title: Confidence
+          description: Підсумкова впевненість (мінімум по реквізитах)
+        confidence_threshold:
+          type: string
+          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          title: Confidence Threshold
+          default: '0.85'
+        requires_human_review:
+          type: boolean
+          title: Requires Human Review
+        review_reasons:
+          items:
+            type: string
+          type: array
+          title: Review Reasons
+        warnings:
+          items:
+            type: string
+          type: array
+          title: Warnings
+        duplicate_of:
+          anyOf:
+          - type: string
+            format: uuid
+          - type: 'null'
+          title: Duplicate Of
+          description: Документ з ідентичним файлом (SHA-256)
+        ai_runs:
+          $ref: '#/components/schemas/AiRunRefs'
+      type: object
+      required:
+      - document_id
+      - version_id
+      - status
+      - document_type_code
+      - direction
+      - access_level
+      - file
+      - ocr
+      - requisites
+      - confidence
+      - requires_human_review
+      - ai_runs
+      title: IngestResponse
+    InterestedParty:
+      properties:
+        full_name:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Full Name
+          description: ПІБ / ім'я та прізвище
+        position:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Position
+          description: Посада
+        org_unit:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Org Unit
+          description: Підрозділ або організація
+        role:
+          $ref: '#/components/schemas/PartyRole'
+      type: object
+      required:
+      - role
+      title: InterestedParty
+    InternalCertView:
+      properties:
+        serial:
+          type: string
+          title: Serial
+        subject_cn:
+          type: string
+          title: Subject Cn
+        fingerprint_sha256:
+          type: string
+          title: Fingerprint Sha256
+        valid_from:
+          type: string
+          format: date-time
+          title: Valid From
+        valid_to:
+          type: string
+          format: date-time
+          title: Valid To
+        certificate_pem:
+          type: string
+          title: Certificate Pem
+        chain_pem:
+          type: string
+          title: Chain Pem
+        notice_uk:
+          type: string
+          title: Notice Uk
+      type: object
+      required:
+      - serial
+      - subject_cn
+      - fingerprint_sha256
+      - valid_from
+      - valid_to
+      - certificate_pem
+      - chain_pem
+      - notice_uk
+      title: InternalCertView
+    KeyBindingView:
+      properties:
+        id:
+          type: string
+          format: uuid
+          title: Id
+        level:
+          type: string
+          enum:
+          - qualified
+          - internal
+          title: Level
+        level_uk:
+          type: string
+          title: Level Uk
+        subject_cn:
+          type: string
+          title: Subject Cn
+        issuer:
+          type: string
+          title: Issuer
+        serial:
+          type: string
+          title: Serial
+        fingerprint_sha256:
+          type: string
+          title: Fingerprint Sha256
+        valid_from:
+          type: string
+          format: date-time
+          title: Valid From
+        valid_to:
+          type: string
+          format: date-time
+          title: Valid To
+        key_format:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Key Format
+        bound_via:
+          type: string
+          title: Bound Via
+        bound_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Bound At
+        revoked_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Revoked At
+        revoke_reason:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Revoke Reason
+        expires_soon:
+          type: boolean
+          title: Expires Soon
+      type: object
+      required:
+      - id
+      - level
+      - level_uk
+      - subject_cn
+      - issuer
+      - serial
+      - fingerprint_sha256
+      - valid_from
+      - valid_to
+      - key_format
+      - bound_via
+      - bound_at
+      - revoked_at
+      - revoke_reason
+      - expires_soon
+      title: KeyBindingView
+    KeyFileRequest:
+      properties:
+        password:
+          type: string
+          maxLength: 128
+          minLength: 12
+          title: Password
+          description: Пароль до файлу-ключа; сервер його не зберігає
+      additionalProperties: false
+      type: object
+      required:
+      - password
+      title: KeyFileRequest
+    KeyRegisterRequest:
+      properties:
+        challenge_token:
+          type: string
+          maxLength: 2048
+          minLength: 20
+          title: Challenge Token
+        signature_base64:
+          type: string
+          maxLength: 400000
+          minLength: 16
+          title: Signature Base64
+          description: CAdES detached над data виклику (віджет ІІТ / Дія.Підпис / keytool)
+        key_format:
+          anyOf:
+          - type: string
+            enum:
+            - jks
+            - pkcs12
+            - key6_dat
+            - token
+            - cloud
+          - type: 'null'
+          title: Key Format
+          description: 'Звідки ключ (довідково): ПриватБанк — jks, Дія/ІІТ — key6_dat або pkcs12'
+      additionalProperties: false
+      type: object
+      required:
+      - challenge_token
+      - signature_base64
+      title: KeyRegisterRequest
+    KeyRevokeRequest:
+      properties:
+        reason:
+          type: string
+          maxLength: 256
+          minLength: 3
+          title: Reason
+      additionalProperties: false
+      type: object
+      required:
+      - reason
+      title: KeyRevokeRequest
+    MeOut:
+      properties:
+        id:
+          type: string
+          format: uuid
+          title: Id
+        display_name:
+          type: string
+          title: Display Name
+        email:
+          type: string
+          title: Email
+        primary_org_unit_id:
+          anyOf:
+          - type: string
+            format: uuid
+          - type: 'null'
+          title: Primary Org Unit Id
+        roles:
+          items:
+            $ref: '#/components/schemas/RoleOut'
+          type: array
+          title: Roles
+        permissions:
+          $ref: '#/components/schemas/Permissions'
+      type: object
+      required:
+      - id
+      - display_name
+      - email
+      - primary_org_unit_id
+      - roles
+      - permissions
+      title: MeOut
+    ModulesOut:
+      properties:
+        ingest:
+          type: boolean
+          title: Ingest
+        compliance:
+          type: boolean
+          title: Compliance
+        routing:
+          type: boolean
+          title: Routing
+        kep_mock:
+          type: boolean
+          title: Kep Mock
+          description: 'Імітаційний КНЕДП (лише dev/test): підпис тестовим ключем без юридичної сили'
+      type: object
+      required:
+      - ingest
+      - compliance
+      - routing
+      - kep_mock
+      title: ModulesOut
+    OcrPageInfo:
+      properties:
+        page_no:
+          type: integer
+          title: Page No
+        source:
+          $ref: '#/components/schemas/TextSource'
+        quality:
+          type: string
+          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          title: Quality
+          description: 1.0 — текстовий шар PDF; для OCR — середня впевненість Tesseract
+        chars:
+          type: integer
+          title: Chars
+        note:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Note
+      type: object
+      required:
+      - page_no
+      - source
+      - quality
+      - chars
+      title: OcrPageInfo
+    OcrSummary:
+      properties:
+        engine:
+          type: string
+          title: Engine
+        page_count:
+          type: integer
+          title: Page Count
+        pages_processed:
+          type: integer
+          title: Pages Processed
+        used_ocr:
+          type: boolean
+          title: Used Ocr
+        quality:
+          type: string
+          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          title: Quality
+        pages:
+          items:
+            $ref: '#/components/schemas/OcrPageInfo'
+          type: array
+          title: Pages
+      type: object
+      required:
+      - engine
+      - page_count
+      - pages_processed
+      - used_ocr
+      - quality
+      - pages
+      title: OcrSummary
+    OrgUnitKind:
+      type: string
+      enum:
+      - university
+      - rectorate
+      - institute
+      - faculty
+      - department
+      - division
+      - center
+      - collegial_body
+      title: OrgUnitKind
+    OrgUnitOut:
+      properties:
+        id:
+          type: string
+          format: uuid
+          title: Id
+        parent_id:
+          anyOf:
+          - type: string
+            format: uuid
+          - type: 'null'
+          title: Parent Id
+        kind:
+          $ref: '#/components/schemas/OrgUnitKind'
+        code:
+          type: string
+          title: Code
+        name:
+          type: string
+          title: Name
+        short_name:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Short Name
+      type: object
+      required:
+      - id
+      - parent_id
+      - kind
+      - code
+      - name
+      - short_name
+      title: OrgUnitOut
+    PartyRole:
+      type: string
+      enum:
+      - addressee
+      - executor
+      - subject
+      - controller
+      - approver
+      - acknowledger
+      - other
+      title: PartyRole
+    Permissions:
+      properties:
+        upload_all_units:
+          type: boolean
+          title: Upload All Units
+          description: 'Ректор/проректор: реєстрація документів будь-якого підрозділу'
+        upload_unit_ids:
+          items:
+            type: string
+            format: uuid
+          type: array
+          title: Upload Unit Ids
+        corpus_admin:
+          type: boolean
+          title: Corpus Admin
+          description: Може змінювати нормативний корпус (RAG)
+        view_all_documents:
+          type: boolean
+          title: View All Documents
+      type: object
+      required:
+      - upload_all_units
+      - upload_unit_ids
+      - corpus_admin
+      - view_all_documents
+      title: Permissions
+    Person:
+      properties:
+        full_name:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Full Name
+          description: ПІБ / ім'я та прізвище
+        position:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Position
+          description: Посада
+        org_unit:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Org Unit
+          description: Підрозділ або організація
+      type: object
+      title: Person
+    PersonRef:
+      properties:
+        id:
+          type: string
+          format: uuid
+          title: Id
+        name:
+          type: string
+          title: Name
+      type: object
+      required:
+      - id
+      - name
+      title: PersonRef
+    PlannedStepView:
+      properties:
+        stage_no:
+          type: integer
+          title: Stage No
+        ordinal:
+          type: integer
+          title: Ordinal
+        title_uk:
+          type: string
+          title: Title Uk
+        step_kind:
+          $ref: '#/components/schemas/StepKind'
+        assignee_id:
+          type: string
+          format: uuid
+          title: Assignee Id
+        assignee_name:
+          type: string
+          title: Assignee Name
+        acting_role:
+          anyOf:
+          - $ref: '#/components/schemas/UserRole'
+          - type: 'null'
+        requires_kep:
+          type: boolean
+          title: Requires Kep
+        is_mandatory:
+          type: boolean
+          title: Is Mandatory
+        deadline_hours:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Deadline Hours
+        will_skip:
+          type: boolean
+          title: Will Skip
+        skip_reason:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Skip Reason
+      type: object
+      required:
+      - stage_no
+      - ordinal
+      - title_uk
+      - step_kind
+      - assignee_id
+      - assignee_name
+      - acting_role
+      - requires_kep
+      - is_mandatory
+      - deadline_hours
+      - will_skip
+      - skip_reason
+      title: PlannedStepView
+    ProvisionCoverage:
+      properties:
+        provision_id:
+          type: string
+          title: Provision Id
+        kind:
+          $ref: '#/components/schemas/ProvisionKind'
+        label:
+          type: string
+          title: Label
+        coverage:
+          $ref: '#/components/schemas/Coverage'
+        norms_considered:
+          items:
+            type: string
+          type: array
+          title: Norms Considered
+          description: Підписи норм, які бачила модель
+        assessed:
+          type: boolean
+          title: Assessed
+        no_issue_confidence:
+          anyOf:
+          - type: string
+            pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          - type: 'null'
+          title: No Issue Confidence
+          description: Впевненість, що пункт не суперечить знайденим нормам (якщо зауважень немає)
+        query_rewritten:
+          type: boolean
+          title: Query Rewritten
+          default: false
+      type: object
+      required:
+      - provision_id
+      - kind
+      - label
+      - coverage
+      - norms_considered
+      - assessed
+      title: ProvisionCoverage
+    ProvisionKind:
+      type: string
+      enum:
+      - title
+      - preamble
+      - item
+      - basis
+      - signature
+      title: ProvisionKind
+    RegulatoryLevel:
+      type: string
+      enum:
+      - law
+      - cabinet
+      - ministry
+      - standard
+      - university
+      - unit
+      title: RegulatoryLevel
+    RegulatoryStatus:
+      type: string
+      enum:
+      - draft
+      - in_force
+      - amended
+      - repealed
+      title: RegulatoryStatus
+    RequisitesIn:
+      properties:
+        values:
+          additionalProperties: true
+          type: object
+          title: Values
+          description: 'Ключі: document_type, document_date, registration_number, author, title, summary, interested_parties'
+        row_version:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Row Version
+      additionalProperties: false
+      type: object
+      required:
+      - values
+      title: RequisitesIn
+    ReviewQueueItem:
+      properties:
+        document_id:
+          type: string
+          format: uuid
+          title: Document Id
+        document_title:
+          type: string
+          title: Document Title
+        org_unit_name:
+          type: string
+          title: Org Unit Name
+        task:
+          type: string
+          enum:
+          - requisites
+          - compliance
+          title: Task
+        ai_run_id:
+          type: string
+          format: uuid
+          title: Ai Run Id
+        confidence:
+          anyOf:
+          - type: string
+            pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          - type: 'null'
+          title: Confidence
+        pending_fields:
+          type: integer
+          title: Pending Fields
+        queued_at:
+          type: string
+          format: date-time
+          title: Queued At
+      type: object
+      required:
+      - document_id
+      - document_title
+      - org_unit_name
+      - task
+      - ai_run_id
+      - confidence
+      - pending_fields
+      - queued_at
+      title: ReviewQueueItem
+    RoleOut:
+      properties:
+        role:
+          $ref: '#/components/schemas/UserRole'
+        role_label:
+          type: string
+          title: Role Label
+        org_unit_id:
+          anyOf:
+          - type: string
+            format: uuid
+          - type: 'null'
+          title: Org Unit Id
+        org_unit_name:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Org Unit Name
+        scope_note:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Scope Note
+        is_acting:
+          type: boolean
+          title: Is Acting
+      type: object
+      required:
+      - role
+      - role_label
+      - org_unit_id
+      - org_unit_name
+      - scope_note
+      - is_acting
+      title: RoleOut
+    RouteCancel:
+      properties:
+        reason:
+          type: string
+          maxLength: 1024
+          minLength: 3
+          title: Reason
+      additionalProperties: false
+      type: object
+      required:
+      - reason
+      title: RouteCancel
+    RouteCreate:
+      properties:
+        template_code:
+          anyOf:
+          - type: string
+            maxLength: 64
+          - type: 'null'
+          title: Template Code
+          description: Немає — шаблон добирається за видом і підрозділом документа
+        assignee_overrides:
+          items:
+            $ref: '#/components/schemas/AssigneeOverride'
+          type: array
+          maxItems: 50
+          title: Assignee Overrides
+        start:
+          type: boolean
+          title: Start
+          description: Одразу запустити маршрут (перший етап отримає документ)
+          default: true
+        acknowledge_findings:
+          type: boolean
+          title: Acknowledge Findings
+          description: Ініціатор свідомо запускає маршрут попри відкриті критичні зауваження комплаєнсу
+          default: false
+      additionalProperties: false
+      type: object
+      title: RouteCreate
+    RouteOut:
+      properties:
+        id:
+          type: string
+          format: uuid
+          title: Id
+        status:
+          $ref: '#/components/schemas/RouteStatus'
+        document_version_id:
+          type: string
+          format: uuid
+          title: Document Version Id
+        template_name:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Template Name
+        current_stage:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Current Stage
+        initiated_by:
+          $ref: '#/components/schemas/PersonRef'
+        started_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Started At
+        completed_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Completed At
+        cancel_reason:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Cancel Reason
+        steps:
+          items:
+            $ref: '#/components/schemas/StepOut'
+          type: array
+          title: Steps
+      type: object
+      required:
+      - id
+      - status
+      - document_version_id
+      - template_name
+      - current_stage
+      - initiated_by
+      - started_at
+      - completed_at
+      - cancel_reason
+      - steps
+      title: RouteOut
+    RoutePlanView:
+      properties:
+        document_id:
+          type: string
+          format: uuid
+          title: Document Id
+        document_version_id:
+          type: string
+          format: uuid
+          title: Document Version Id
+        template_code:
+          type: string
+          title: Template Code
+        template_version:
+          type: integer
+          title: Template Version
+        template_name:
+          type: string
+          title: Template Name
+        steps:
+          items:
+            $ref: '#/components/schemas/PlannedStepView'
+          type: array
+          title: Steps
+      type: object
+      required:
+      - document_id
+      - document_version_id
+      - template_code
+      - template_version
+      - template_name
+      - steps
+      title: RoutePlanView
+    RouteRequest:
+      properties:
+        template_code:
+          anyOf:
+          - type: string
+            maxLength: 64
+          - type: 'null'
+          title: Template Code
+          description: Немає — шаблон добирається за видом і підрозділом документа
+        assignee_overrides:
+          items:
+            $ref: '#/components/schemas/AssigneeOverride'
+          type: array
+          maxItems: 50
+          title: Assignee Overrides
+      additionalProperties: false
+      type: object
+      title: RouteRequest
+    RouteStart:
+      properties:
+        acknowledge_findings:
+          type: boolean
+          title: Acknowledge Findings
+          default: false
+      additionalProperties: false
+      type: object
+      title: RouteStart
+    RouteStatus:
+      type: string
+      enum:
+      - draft
+      - active
+      - completed
+      - rejected
+      - cancelled
+      title: RouteStatus
+    RouteView:
+      properties:
+        id:
+          type: string
+          format: uuid
+          title: Id
+        document_id:
+          type: string
+          format: uuid
+          title: Document Id
+        document_title:
+          type: string
+          title: Document Title
+        document_version_id:
+          type: string
+          format: uuid
+          title: Document Version Id
+        content_sha256:
+          type: string
+          title: Content Sha256
+        template_code:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Template Code
+        template_version:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Template Version
+        template_name:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Template Name
+        status:
+          $ref: '#/components/schemas/RouteStatus'
+        current_stage:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Current Stage
+        initiated_by_id:
+          type: string
+          format: uuid
+          title: Initiated By Id
+        started_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Started At
+        completed_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Completed At
+        cancel_reason:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Cancel Reason
+        steps:
+          items:
+            $ref: '#/components/schemas/StepView'
+          type: array
+          title: Steps
+        warnings:
+          items:
+            type: string
+          type: array
+          title: Warnings
+      type: object
+      required:
+      - id
+      - document_id
+      - document_title
+      - document_version_id
+      - content_sha256
+      - template_code
+      - template_version
+      - template_name
+      - status
+      - current_stage
+      - initiated_by_id
+      - started_at
+      - completed_at
+      - cancel_reason
+      - steps
+      title: RouteView
+    RunReviewIn:
+      properties:
+        decision:
+          $ref: '#/components/schemas/FieldDecision'
+        comment:
+          anyOf:
+          - type: string
+            maxLength: 2000
+          - type: 'null'
+          title: Comment
+      additionalProperties: false
+      type: object
+      required:
+      - decision
+      title: RunReviewIn
+    SearchHit:
+      properties:
+        chunk_id:
+          type: string
+          format: uuid
+          title: Chunk Id
+        source_id:
+          type: string
+          format: uuid
+          title: Source Id
+        citation_label:
+          type: string
+          title: Citation Label
+        source_title:
+          type: string
+          title: Source Title
+        level:
+          $ref: '#/components/schemas/RegulatoryLevel'
+        status:
+          $ref: '#/components/schemas/RegulatoryStatus'
+        section_ref:
+          type: string
+          title: Section Ref
+        content:
+          type: string
+          title: Content
+        is_sample:
+          type: boolean
+          title: Is Sample
+        dense_score:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Dense Score
+        sparse_score:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Sparse Score
+        fused_score:
+          type: number
+          title: Fused Score
+        rerank_score:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Rerank Score
+      type: object
+      required:
+      - chunk_id
+      - source_id
+      - citation_label
+      - source_title
+      - level
+      - status
+      - section_ref
+      - content
+      - is_sample
+      - dense_score
+      - sparse_score
+      - fused_score
+      - rerank_score
+      title: SearchHit
+    SearchResponse:
+      properties:
+        coverage:
+          $ref: '#/components/schemas/Coverage'
+        as_of:
+          type: string
+          format: date
+          title: As Of
+        hits:
+          items:
+            $ref: '#/components/schemas/SearchHit'
+          type: array
+          title: Hits
+      type: object
+      required:
+      - coverage
+      - as_of
+      - hits
+      title: SearchResponse
+    SignRequest:
+      properties:
+        signature_base64:
+          type: string
+          maxLength: 400000
+          minLength: 16
+          title: Signature Base64
+        provider:
+          $ref: '#/components/schemas/SignatureProvider'
+          default: file_key
+        decision:
+          type: string
+          enum:
+          - approved
+          - approved_with_remarks
+          title: Decision
+          default: approved
+        comment:
+          anyOf:
+          - type: string
+            maxLength: 10000
+          - type: 'null'
+          title: Comment
+      additionalProperties: false
+      type: object
+      required:
+      - signature_base64
+      title: SignRequest
+      description: 'Віза з КЕП: відокремлений CAdES над SHA-256 версії документа (base64 DER).'
+    SignatureFormat:
+      type: string
+      enum:
+      - CAdES-BES
+      - CAdES-X-Long
+      - XAdES-B-LT
+      - PAdES-B-LT
+      - ASiC-E
+      title: SignatureFormat
+    SignatureOut:
+      properties:
+        id:
+          type: string
+          format: uuid
+          title: Id
+        document_version_id:
+          type: string
+          format: uuid
+          title: Document Version Id
+        approval_step_id:
+          anyOf:
+          - type: string
+            format: uuid
+          - type: 'null'
+          title: Approval Step Id
+        signer:
+          $ref: '#/components/schemas/PersonRef'
+        signature_format:
+          $ref: '#/components/schemas/SignatureFormat'
+        provider:
+          $ref: '#/components/schemas/SignatureProvider'
+        cert_subject_cn:
+          type: string
+          title: Cert Subject Cn
+        cert_issuer:
+          type: string
+          title: Cert Issuer
+        cert_serial:
+          type: string
+          title: Cert Serial
+        signed_at:
+          type: string
+          format: date-time
+          title: Signed At
+        validation_status:
+          $ref: '#/components/schemas/SignatureValidation'
+        validated_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Validated At
+      type: object
+      required:
+      - id
+      - document_version_id
+      - approval_step_id
+      - signer
+      - signature_format
+      - provider
+      - cert_subject_cn
+      - cert_issuer
+      - cert_serial
+      - signed_at
+      - validation_status
+      - validated_at
+      title: SignatureOut
+    SignatureProvider:
+      type: string
+      enum:
+      - file_key
+      - hardware_token
+      - cloud_kep
+      - diia_signature
+      title: SignatureProvider
+    SignatureValidation:
+      type: string
+      enum:
+      - pending
+      - valid
+      - invalid
+      - cert_revoked
+      - cert_expired
+      - indeterminate
+      title: SignatureValidation
+    SignatureVerifyRequest:
+      properties:
+        signature_base64:
+          type: string
+          maxLength: 400000
+          minLength: 16
+          title: Signature Base64
+        content_sha256:
+          type: string
+          pattern: ^[0-9a-f]{64}$
+          title: Content Sha256
+      additionalProperties: false
+      type: object
+      required:
+      - signature_base64
+      - content_sha256
+      title: SignatureVerifyRequest
+    SignatureVerifyView:
+      properties:
+        status:
+          $ref: '#/components/schemas/SignatureValidation'
+        level:
+          anyOf:
+          - type: string
+            enum:
+            - qualified
+            - internal
+            - mock
+            - other
+          - type: 'null'
+          title: Level
+        reasons:
+          items:
+            type: string
+          type: array
+          title: Reasons
+        report:
+          additionalProperties: true
+          type: object
+          title: Report
+      type: object
+      required:
+      - status
+      - level
+      - reasons
+      - report
+      title: SignatureVerifyView
+    SignatureView:
+      properties:
+        id:
+          type: string
+          format: uuid
+          title: Id
+        cert_subject_cn:
+          type: string
+          title: Cert Subject Cn
+        cert_serial:
+          type: string
+          title: Cert Serial
+        cert_issuer:
+          type: string
+          title: Cert Issuer
+        signed_at:
+          type: string
+          format: date-time
+          title: Signed At
+        validation_status:
+          $ref: '#/components/schemas/SignatureValidation'
+      type: object
+      required:
+      - id
+      - cert_subject_cn
+      - cert_serial
+      - cert_issuer
+      - signed_at
+      - validation_status
+      title: SignatureView
+    SigningRequestView:
+      properties:
+        step_id:
+          type: string
+          format: uuid
+          title: Step Id
+        document_id:
+          type: string
+          format: uuid
+          title: Document Id
+        document_version_id:
+          type: string
+          format: uuid
+          title: Document Version Id
+        file_name:
+          type: string
+          title: File Name
+        content_sha256:
+          type: string
+          title: Content Sha256
+        digest_algorithm:
+          type: string
+          const: SHA-256
+          title: Digest Algorithm
+          default: SHA-256
+        signature_container:
+          type: string
+          const: CAdES detached (CMS SignedData)
+          title: Signature Container
+          default: CAdES detached (CMS SignedData)
+        accepted_formats:
+          items:
+            type: string
+          type: array
+          title: Accepted Formats
+        not_before:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Not Before
+        accepted_levels:
+          items:
+            type: string
+          type: array
+          title: Accepted Levels
+          description: qualified — КЕП КНЕДП; internal — внутрішній ключ АІ-СЕД ПУЕТ
+        accepted_levels_uk:
+          items:
+            type: string
+          type: array
+          title: Accepted Levels Uk
+      type: object
+      required:
+      - step_id
+      - document_id
+      - document_version_id
+      - file_name
+      - content_sha256
+      - not_before
+      title: SigningRequestView
+      description: 'Що саме підписувати: клієнт (ІІТ / Дія.Підпис) рахує той самий геш над файлом версії.'
+    StatusChangeOut:
+      properties:
+        from_status:
+          anyOf:
+          - $ref: '#/components/schemas/DocumentStatus'
+          - type: 'null'
+        to_status:
+          $ref: '#/components/schemas/DocumentStatus'
+        changed_by:
+          anyOf:
+          - $ref: '#/components/schemas/PersonRef'
+          - type: 'null'
+        actor_type:
+          type: string
+          title: Actor Type
+        reason:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Reason
+        changed_at:
+          type: string
+          format: date-time
+          title: Changed At
+      type: object
+      required:
+      - from_status
+      - to_status
+      - changed_by
+      - actor_type
+      - reason
+      - changed_at
+      title: StatusChangeOut
+    StepDecision:
+      properties:
+        decision:
+          type: string
+          enum:
+          - approved
+          - approved_with_remarks
+          - rejected
+          title: Decision
+        comment:
+          anyOf:
+          - type: string
+            maxLength: 10000
+          - type: 'null'
+          title: Comment
+      additionalProperties: false
+      type: object
+      required:
+      - decision
+      title: StepDecision
+      description: Рішення людини по кроку. Підписання (КЕП) йде окремим ендпоінтом з контейнером підпису.
+    StepKind:
+      type: string
+      enum:
+      - visa
+      - approval
+      - signing
+      - ratification
+      - acknowledgement
+      - registration
+      title: StepKind
+    StepOut:
+      properties:
+        id:
+          type: string
+          format: uuid
+          title: Id
+        stage_no:
+          type: integer
+          title: Stage No
+        ordinal:
+          type: integer
+          title: Ordinal
+        step_kind:
+          $ref: '#/components/schemas/StepKind'
+        assignee:
+          $ref: '#/components/schemas/PersonRef'
+        original_assignee:
+          anyOf:
+          - $ref: '#/components/schemas/PersonRef'
+          - type: 'null'
+        acting_role:
+          anyOf:
+          - $ref: '#/components/schemas/UserRole'
+          - type: 'null'
+        status:
+          $ref: '#/components/schemas/StepStatus'
+        is_mandatory:
+          type: boolean
+          title: Is Mandatory
+        requires_kep:
+          type: boolean
+          title: Requires Kep
+        activated_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Activated At
+        due_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Due At
+        decided_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Decided At
+        decision_comment:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Decision Comment
+        is_overdue:
+          type: boolean
+          title: Is Overdue
+      type: object
+      required:
+      - id
+      - stage_no
+      - ordinal
+      - step_kind
+      - assignee
+      - original_assignee
+      - acting_role
+      - status
+      - is_mandatory
+      - requires_kep
+      - activated_at
+      - due_at
+      - decided_at
+      - decision_comment
+      - is_overdue
+      title: StepOut
+    StepStatus:
+      type: string
+      enum:
+      - waiting
+      - active
+      - approved
+      - approved_with_remarks
+      - rejected
+      - skipped
+      - delegated
+      - expired
+      title: StepStatus
+    StepView:
+      properties:
+        id:
+          type: string
+          format: uuid
+          title: Id
+        stage_no:
+          type: integer
+          title: Stage No
+        ordinal:
+          type: integer
+          title: Ordinal
+        title_uk:
+          type: string
+          title: Title Uk
+        step_kind:
+          $ref: '#/components/schemas/StepKind'
+        assignee_id:
+          type: string
+          format: uuid
+          title: Assignee Id
+        assignee_name:
+          type: string
+          title: Assignee Name
+        original_assignee_id:
+          anyOf:
+          - type: string
+            format: uuid
+          - type: 'null'
+          title: Original Assignee Id
+        original_assignee_name:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Original Assignee Name
+        acting_role:
+          anyOf:
+          - $ref: '#/components/schemas/UserRole'
+          - type: 'null'
+        status:
+          $ref: '#/components/schemas/StepStatus'
+        is_mandatory:
+          type: boolean
+          title: Is Mandatory
+        requires_kep:
+          type: boolean
+          title: Requires Kep
+        activated_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Activated At
+        due_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Due At
+        decided_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Decided At
+        decision_comment:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Decision Comment
+        is_overdue:
+          type: boolean
+          title: Is Overdue
+        signature:
+          anyOf:
+          - $ref: '#/components/schemas/SignatureView'
+          - type: 'null'
+      type: object
+      required:
+      - id
+      - stage_no
+      - ordinal
+      - title_uk
+      - step_kind
+      - assignee_id
+      - assignee_name
+      - original_assignee_id
+      - original_assignee_name
+      - acting_role
+      - status
+      - is_mandatory
+      - requires_kep
+      - activated_at
+      - due_at
+      - decided_at
+      - decision_comment
+      - is_overdue
+      - signature
+      title: StepView
+    StoredFileInfo:
+      properties:
+        file_name:
+          type: string
+          title: File Name
+        mime_type:
+          type: string
+          title: Mime Type
+        size_bytes:
+          type: integer
+          title: Size Bytes
+        sha256:
+          type: string
+          title: Sha256
+        storage_bucket:
+          type: string
+          title: Storage Bucket
+        storage_key:
+          type: string
+          title: Storage Key
+        storage_version_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Storage Version Id
+      type: object
+      required:
+      - file_name
+      - mime_type
+      - size_bytes
+      - sha256
+      - storage_bucket
+      - storage_key
+      - storage_version_id
+      title: StoredFileInfo
+    TextSource:
+      type: string
+      enum:
+      - text_layer
+      - ocr
+      - empty
+      title: TextSource
+    TokenOut:
+      properties:
+        access_token:
+          type: string
+          title: Access Token
+        token_type:
+          type: string
+          const: Bearer
+          title: Token Type
+          default: Bearer
+        expires_in:
+          type: integer
+          title: Expires In
+      type: object
+      required:
+      - access_token
+      - expires_in
+      title: TokenOut
+    UserRole:
+      type: string
+      enum:
+      - student
+      - lecturer
+      - department_head
+      - institute_director
+      - unit_head
+      - rector
+      - vice_rector
+      - staff
+      - student_government_head
+      title: UserRole
+      description: Функціональні ролі СЕД (джерело — Keycloak realm roles, тут дзеркало з областю дії).
+    ValidationError:
+      properties:
+        loc:
+          items:
+            anyOf:
+            - type: string
+            - type: integer
+          type: array
+          title: Location
+        msg:
+          type: string
+          title: Message
+        type:
+          type: string
+          title: Error Type
+        input:
+          title: Input
+        ctx:
+          type: object
+          title: Context
+      type: object
+      required:
+      - loc
+      - msg
+      - type
+      title: ValidationError
+    VersionOut:
+      properties:
+        id:
+          type: string
+          format: uuid
+          title: Id
+        version_number:
+          type: integer
+          title: Version Number
+        source:
+          $ref: '#/components/schemas/VersionSource'
+        file_name:
+          type: string
+          title: File Name
+        mime_type:
+          type: string
+          title: Mime Type
+        size_bytes:
+          type: integer
+          title: Size Bytes
+        content_sha256:
+          type: string
+          title: Content Sha256
+        page_count:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Page Count
+        created_at:
+          type: string
+          format: date-time
+          title: Created At
+        created_by:
+          $ref: '#/components/schemas/PersonRef'
+        is_locked:
+          type: boolean
+          title: Is Locked
+        change_note:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Change Note
+        has_text:
+          type: boolean
+          title: Has Text
+      type: object
+      required:
+      - id
+      - version_number
+      - source
+      - file_name
+      - mime_type
+      - size_bytes
+      - content_sha256
+      - page_count
+      - created_at
+      - created_by
+      - is_locked
+      - change_note
+      - has_text
+      title: VersionOut
+    VersionSource:
+      type: string
+      enum:
+      - upload
+      - editor
+      - template
+      - ai_generated
+      - ocr_scan
+      title: VersionSource
+    ViolatedClause:
+      properties:
+        citation_label:
+          type: string
+          title: Citation Label
+        source_title:
+          type: string
+          title: Source Title
+        section_ref:
+          type: string
+          title: Section Ref
+        chunk_id:
+          type: string
+          format: uuid
+          title: Chunk Id
+        quoted_text:
+          type: string
+          title: Quoted Text
+        finding_ordinals:
+          items:
+            type: integer
+          type: array
+          title: Finding Ordinals
+        max_severity:
+          $ref: '#/components/schemas/FindingSeverity'
+        max_confidence:
+          type: string
+          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          title: Max Confidence
+      type: object
+      required:
+      - citation_label
+      - source_title
+      - section_ref
+      - chunk_id
+      - quoted_text
+      - finding_ordinals
+      - max_severity
+      - max_confidence
+      title: ViolatedClause
+      description: Пункт акта, який може бути порушено (агрегат по зауваженнях).
+    sed_app__api__schemas__InboxItem:
+      properties:
+        step_id:
+          type: string
+          format: uuid
+          title: Step Id
+        route_id:
+          type: string
+          format: uuid
+          title: Route Id
+        document_id:
+          type: string
+          format: uuid
+          title: Document Id
+        document_title:
+          type: string
+          title: Document Title
+        document_type_name:
+          type: string
+          title: Document Type Name
+        document_status:
+          $ref: '#/components/schemas/DocumentStatus'
+        org_unit_name:
+          type: string
+          title: Org Unit Name
+        author_name:
+          type: string
+          title: Author Name
+        step_kind:
+          $ref: '#/components/schemas/StepKind'
+        stage_no:
+          type: integer
+          title: Stage No
+        acting_role:
+          anyOf:
+          - $ref: '#/components/schemas/UserRole'
+          - type: 'null'
+        requires_kep:
+          type: boolean
+          title: Requires Kep
+        activated_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Activated At
+        due_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Due At
+        is_overdue:
+          type: boolean
+          title: Is Overdue
+        delegated_from:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Delegated From
+      type: object
+      required:
+      - step_id
+      - route_id
+      - document_id
+      - document_title
+      - document_type_name
+      - document_status
+      - org_unit_name
+      - author_name
+      - step_kind
+      - stage_no
+      - acting_role
+      - requires_kep
+      - activated_at
+      - due_at
+      - is_overdue
+      - delegated_from
+      title: InboxItem
+    sed_ingest__domain__result__IngestStatus:
+      type: string
+      enum:
+      - processed
+      - needs_review
+      - manual_entry_required
+      title: IngestStatus
+    sed_rag__ingestion__service__IngestStatus:
+      type: string
+      enum:
+      - created
+      - reindexed
+      - unchanged
+      title: IngestStatus
+    sed_routing__views__InboxItem:
+      properties:
+        step_id:
+          type: string
+          format: uuid
+          title: Step Id
+        route_id:
+          type: string
+          format: uuid
+          title: Route Id
+        document_id:
+          type: string
+          format: uuid
+          title: Document Id
+        document_title:
+          type: string
+          title: Document Title
+        document_type_code:
+          type: string
+          title: Document Type Code
+        step_kind:
+          $ref: '#/components/schemas/StepKind'
+        title_uk:
+          type: string
+          title: Title Uk
+        requires_kep:
+          type: boolean
+          title: Requires Kep
+        activated_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Activated At
+        due_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Due At
+        is_overdue:
+          type: boolean
+          title: Is Overdue
+        is_delegated:
+          type: boolean
+          title: Is Delegated
+      type: object
+      required:
+      - step_id
+      - route_id
+      - document_id
+      - document_title
+      - document_type_code
+      - step_kind
+      - title_uk
+      - requires_kep
+      - activated_at
+      - due_at
+      - is_overdue
+      - is_delegated
+      title: InboxItem
+  securitySchemes:
+    HTTPBearer:
+      type: http
+      description: Access token Keycloak (realm puet)
+      scheme: bearer
+      bearerFormat: JWT

@@ -1,0 +1,187 @@
+# СЕД ПУЕТ — повний стек on-prem в одному docker compose.
+# Усе (LLM, ембединги, OCR, сховище, SSO) працює всередині периметра університету.
+#
+#   scripts/init-env.sh                         # створює .env з випадковими секретами
+#   docker compose --profile gpu up -d --build  # LLM на vLLM (NVIDIA GPU)
+#   docker compose --profile cpu up -d --build  # або LLM на Ollama (CPU, повільно)
+#
+# Назовні публікуються лише веб-інтерфейс (SED_HTTP_PORT, типово 8080) і Keycloak (KEYCLOAK_HTTP_PORT, типово 8180),
+# обидва на SED_BIND_ADDR (типово 127.0.0.1). Перед ними в production ставиться реверс-проксі з TLS.
+# БД, MinIO API, Qdrant, LLM, ембединги і сам API доступні лише всередині мережі compose.
+
+name: sed-puet
+
+x-app-image: &app-image
+  build:
+    context: .
+    dockerfile: docker/app.Dockerfile
+  image: ${SED_APP_IMAGE:-puet/sed-app:0.1.0}
+
+x-db-url: &db-url postgresql+psycopg://sed:${SED_DB_PASSWORD:?задайте SED_DB_PASSWORD у .env}@db/sed
+
+services:
+  db:
+    image: pgvector/pgvector:0.8.0-pg16
+    environment:
+      POSTGRES_DB: sed
+      POSTGRES_USER: sed
+      POSTGRES_PASSWORD: ${SED_DB_PASSWORD}
+      POSTGRES_INITDB_ARGS: --data-checksums
+    volumes: [db:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sed -d sed"]
+      interval: 5s
+      retries: 30
+    restart: unless-stopped
+
+  # Міграції Alembic + DDL ключів КЕП (+ демо-дані з --demo) перед кожним стартом застосунку. Ідемпотентно.
+  migrate:
+    <<: *app-image
+    command: ["sh", "-c", "python -m sed_app.cli.migrate $$SED_MIGRATE_FLAGS"]
+    environment:
+      SED_MIGRATE_FLAGS: ${SED_MIGRATE_FLAGS-}
+      SED_DATABASE_URL: *db-url
+    depends_on:
+      db: {condition: service_healthy}
+    restart: "no"
+
+  minio:
+    image: ${MINIO_IMAGE:-quay.io/minio/minio:RELEASE.2025-04-22T22-12-26Z}
+    command: server /data --console-address :9001
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:?}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?}
+      # Шифрування оригіналів і підписів на диску (SSE-S3). У production — зовнішній KES/Vault.
+      MINIO_KMS_SECRET_KEY: ${MINIO_KMS_SECRET_KEY:?}
+    ports: ["${SED_BIND_ADDR:-127.0.0.1}:${MINIO_CONSOLE_PORT:-9001}:9001"]
+    volumes: [minio:/data]
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 5s
+      retries: 30
+    restart: unless-stopped
+
+  qdrant:
+    image: qdrant/qdrant:v1.19.1   # мінорна версія збігається з qdrant-client у constraints.txt
+    environment:
+      QDRANT__SERVICE__API_KEY: ${SED_RAG_QDRANT_API_KEY:?}
+      QDRANT__TELEMETRY_DISABLED: "true"
+    volumes: [qdrant:/qdrant/storage]
+    restart: unless-stopped
+
+  embeddings:          # BAAI/bge-m3, 1024 вимірів, OpenAI-сумісний /v1/embeddings
+    image: ${EMBEDDINGS_IMAGE:-ghcr.io/huggingface/text-embeddings-inference:cpu-1.6}
+    command: ["--model-id", "${EMBEDDINGS_HF_MODEL:-BAAI/bge-m3}", "--port", "80"]
+    environment:
+      HF_HUB_OFFLINE: ${HF_HUB_OFFLINE:-0}
+    volumes: [hf:/data]
+    restart: unless-stopped
+
+  llm-vllm:
+    profiles: [gpu]
+    image: vllm/vllm-openai:v0.8.5
+    command:
+      - --model=${LLM_HF_MODEL}
+      - --served-model-name=${SED_LLM_MODEL}
+      - --max-model-len=32768
+      - --guided-decoding-backend=xgrammar      # структурований вихід (JSON Schema) для реквізитів і звітів
+      - --tokenizer-mode=mistral
+      - --port=8000
+    environment:
+      HF_HUB_OFFLINE: ${HF_HUB_OFFLINE:-0}       # 1 — після завантаження ваг: жодних звернень назовні
+    volumes: [hf:/root/.cache/huggingface]
+    ipc: host
+    deploy:
+      resources:
+        reservations:
+          devices: [{driver: nvidia, count: all, capabilities: [gpu]}]
+    networks:
+      default: {aliases: [llm]}
+    restart: unless-stopped
+
+  llm-ollama:
+    profiles: [cpu]
+    image: ollama/ollama:0.6.8
+    environment:
+      OLLAMA_KEEP_ALIVE: 24h
+    volumes: [ollama:/root/.ollama]
+    networks:
+      default: {aliases: [llm]}
+    restart: unless-stopped
+
+  # Keycloak для стенду і невеликих інсталяцій (вбудована БД у томі keycloak).
+  # Якщо в університеті вже є Keycloak — імпортуйте deploy/keycloak/realm-puet.json туди
+  # і вкажіть його адресу в KEYCLOAK_PUBLIC_URL / SED_APP_OIDC_JWKS_URL, а цей сервіс приберіть.
+  keycloak:
+    image: ${KEYCLOAK_IMAGE:-quay.io/keycloak/keycloak:26.0.7}
+    command: ["start-dev", "--import-realm"]
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:?}
+      KC_HOSTNAME: ${KEYCLOAK_PUBLIC_URL:-http://localhost:8180}
+      KC_HTTP_ENABLED: "true"
+      KC_HEALTH_ENABLED: "true"
+      SED_PUBLIC_URL: ${SED_PUBLIC_URL:-http://localhost:8080}   # підставляється в realm (redirectUris клієнта sed-web)
+    ports: ["${SED_BIND_ADDR:-127.0.0.1}:${KEYCLOAK_HTTP_PORT:-8180}:8080"]
+    volumes:
+      - keycloak:/opt/keycloak/data
+      - ./deploy/keycloak/${KEYCLOAK_REALM_FILE:-realm-puet.json}:/opt/keycloak/data/import/realm-puet.json:ro
+    restart: unless-stopped
+
+  app:
+    <<: *app-image
+    env_file: .env
+    environment:
+      SED_APP_DATABASE_URL: *db-url
+      SED_INGEST_DATABASE_URL: *db-url
+      SED_RAG_DATABASE_URL: *db-url
+      SED_ROUTING_DATABASE_URL: *db-url
+      SED_APP_OIDC_ISSUER: ${KEYCLOAK_PUBLIC_URL:-http://localhost:8180}/realms/puet
+      SED_INGEST_MINIO_ACCESS_KEY: ${MINIO_ROOT_USER}
+      SED_INGEST_MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
+      SED_ROUTING_MINIO_ACCESS_KEY: ${MINIO_ROOT_USER}
+      SED_ROUTING_MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
+      SED_INGEST_LLM_MODEL: ${SED_LLM_MODEL}
+      SED_RAG_LLM_MODEL: ${SED_LLM_MODEL}
+      SED_RAG_EMBEDDING_MODEL: ${EMBEDDINGS_HF_MODEL:-BAAI/bge-m3}
+    depends_on:
+      migrate: {condition: service_completed_successfully}
+      minio: {condition: service_healthy}
+      qdrant: {condition: service_started}
+      embeddings: {condition: service_started}
+      keycloak: {condition: service_started}
+    read_only: true
+    tmpfs: [/tmp]
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+    restart: unless-stopped
+
+  # Інтерфейс (React-збірка) + реверс-проксі /api → app. Один origin: CORS не потрібен.
+  web:
+    build:
+      context: .
+      dockerfile: docker/web.Dockerfile
+    image: ${SED_WEB_IMAGE:-puet/sed-web:0.1.0}
+    environment:
+      SED_API_UPSTREAM: http://app:8080
+      KEYCLOAK_ORIGIN: ${KEYCLOAK_PUBLIC_URL:-http://localhost:8180}
+    ports: ["${SED_BIND_ADDR:-127.0.0.1}:${SED_HTTP_PORT:-8080}:8080"]
+    depends_on:
+      app: {condition: service_healthy}
+    read_only: true
+    tmpfs: ["/tmp", "/etc/nginx/conf.d:uid=101,gid=101"]   # nginx генерує конфіг із шаблону при старті
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:8080/ || exit 1"]
+      interval: 15s
+      retries: 5
+    restart: unless-stopped
+
+volumes:
+  db: {}
+  minio: {}
+  qdrant: {}
+  hf: {}
+  ollama: {}
+  keycloak: {}

@@ -1,0 +1,80 @@
+{
+  "realm": "puet",
+  "enabled": true,
+  "displayName": "ПУЕТ — СЕД",
+  "sslRequired": "external",
+  "accessTokenLifespan": 900,
+  "bruteForceProtected": true,
+  "roles": {
+    "realm": [
+      {
+        "name": "student",
+        "description": "Студент"
+      },
+      {
+        "name": "lecturer",
+        "description": "Викладач"
+      },
+      {
+        "name": "department_head",
+        "description": "Завідувач кафедри"
+      },
+      {
+        "name": "institute_director",
+        "description": "Директор інституту"
+      },
+      {
+        "name": "unit_head",
+        "description": "Керівник структурного підрозділу"
+      },
+      {
+        "name": "rector",
+        "description": "Ректор"
+      },
+      {
+        "name": "vice_rector",
+        "description": "Проректор"
+      },
+      {
+        "name": "staff",
+        "description": "Співробітник"
+      },
+      {
+        "name": "student_government_head",
+        "description": "Голова студентського самоврядування"
+      }
+    ]
+  },
+  "clients": [
+    {
+      "clientId": "sed-web",
+      "name": "СЕД ПУЕТ — веб-інтерфейс",
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "implicitFlowEnabled": false,
+      "redirectUris": [
+        "${SED_PUBLIC_URL}/*"
+      ],
+      "webOrigins": [
+        "${SED_PUBLIC_URL}"
+      ],
+      "attributes": {
+        "pkce.code.challenge.method": "S256",
+        "post.logout.redirect.uris": "${SED_PUBLIC_URL}/*"
+      },
+      "protocolMappers": [
+        {
+          "name": "audience-sed-api",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "config": {
+            "included.custom.audience": "sed-api",
+            "access.token.claim": "true",
+            "id.token.claim": "false"
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,65 @@
+# Типовий маршрут: службова записка на закупівлю.
+# Кроки без `stage` ідуть строго послідовно: наступний учасник отримує документ лише
+# після позитивної візи (з КЕП) попереднього. Однаковий `stage` у кількох кроків = паралельне
+# візування в межах етапу.
+#
+# Правила призначення (rule):
+#   author_unit_head  — керівник підрозділу, від якого документ (для кафедри — завідувач)
+#   unit_head         — керівник підрозділу `unit` (код з org_units.code)
+#   role              — власник ролі; для проректорів `role_scope` = user_roles.scope_note
+#   author_unit_role  — власник ролі в підрозділі автора або вище по ієрархії
+#   position_in_unit  — посада зі штатного розпису (`unit` + `position_code`)
+#   specific_user     — конкретна людина (`user_email`)
+#
+# signature_levels — які підписи приймає крок: "qualified" (КЕП від Дії, ПриватБанку, інших КНЕДП)
+# і/або "internal" (внутрішній ключ АІ-СЕД ПУЕТ, діє лише в межах СЕД). Без поля — лише КЕП.
+# Для службової записки (внутрішній документ) дозволено обидва; крок kind="signing" — завжди лише КЕП.
+#
+# Коди підрозділів BUH / PFV та напрям проректора — приклад; звірте з оргструктурою ПУЕТ.
+
+code = "MEMO_PROCUREMENT"
+name_uk = "Службова записка на закупівлю"
+description = "Зав. кафедри → проректор → головний бухгалтер → ректор → планово-фінансовий відділ"
+document_type = "MEMO"
+
+[[steps]]
+title_uk = "Завідувач кафедри"
+kind = "visa"
+rule = "author_unit_head"
+deadline_hours = 16
+signature_levels = ["qualified", "internal"]
+skip_if_author = true
+
+[[steps]]
+title_uk = "Проректор (за напрямом)"
+kind = "visa"
+rule = "role"
+role = "vice_rector"
+role_scope = "з адміністративно-господарської роботи"
+deadline_hours = 24
+signature_levels = ["qualified", "internal"]
+skip_if_author = true
+
+[[steps]]
+title_uk = "Головний бухгалтер"
+kind = "visa"
+rule = "unit_head"
+unit = "BUH"
+deadline_hours = 24
+signature_levels = ["qualified", "internal"]
+
+[[steps]]
+title_uk = "Ректор"
+kind = "approval"
+rule = "role"
+role = "rector"
+deadline_hours = 24
+signature_levels = ["qualified", "internal"]
+
+[[steps]]
+title_uk = "Планово-фінансовий відділ"
+kind = "visa"
+rule = "unit_head"
+unit = "PFV"
+deadline_hours = 16
+signature_levels = ["qualified", "internal"]

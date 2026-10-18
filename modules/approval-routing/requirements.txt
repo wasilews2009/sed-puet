@@ -1,0 +1,16 @@
+# Шар даних (моделі, DTO) — з ../db-schema (PYTHONPATH або pip install -e ../db-schema)
+-r ../db-schema/requirements.txt
+sqlalchemy[asyncio]>=2.0.30
+fastapi>=0.115
+pydantic-settings>=2.3
+pyjwt[crypto]>=2.9
+anyio>=4.4
+cryptography>=43
+asn1crypto>=1.5
+minio>=7.2
+uvicorn[standard]>=0.30
+httpx>=0.27              # OCSP, sidecar ДСТУ
+python-multipart>=0.0.9  # завантаження сертифіката
+# лише для тестів
+pytest-asyncio>=0.24
+pyyaml>=6

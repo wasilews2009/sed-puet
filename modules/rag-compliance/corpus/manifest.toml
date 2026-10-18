@@ -1,0 +1,98 @@
+# Нормативний корпус для RAG-аудиту СЕД ПУЕТ.
+#
+#   python -m sed_rag.ingestion.cli ingest-manifest corpus/manifest.toml
+#
+# file — шлях відносно цього файлу (.pdf, .txt, .md). PDF-скани розпізнаються Tesseract ukr+eng.
+# text_quality — 1.0 для офіційного/вичитаного тексту; для OCR — середня впевненість розпізнавання
+#   (у звіті цитати з таких актів позначаються «звірте з оригіналом» і мають нижчий confidence).
+# is_sample = true — демонстраційний текст, НЕ офіційна редакція (у звіті є попередження).
+#
+# Акти ПУЕТ нижче — OCR-текст сканів із папки проєкту (corpus/ocr/*.ocr.txt, не вичитаний).
+# Рекомендовано: вичитати текст, покласти поруч як *.txt і змінити file + text_quality = 1.0.
+# Дати набрання чинності взято з титульних сторінок; звірте з оригіналами.
+
+[[act]]
+file = "ocr/statut_puet (2).ocr.txt"
+title = "Статут Полтавського університету економіки і торгівлі (нова редакція)"
+short_title = "Статут ПУЕТ"
+level = "university"
+issuer = "Засновник ПУЕТ (ТОВ «Український освітній холдинг»)"
+adopted_on = 2025-08-05
+effective_from = 2025-08-05
+text_quality = 0.92
+
+[[act]]
+file = "ocr/polozh-kaf.ocr.txt"
+title = "Положення про кафедру"
+short_title = "Положення про кафедру"
+level = "university"
+issuer = "Вчена рада ПУЕТ"
+doc_number = "ДПСЯ ПП-9-6.2.2-09-05-25"
+adopted_on = 2025-09-24
+effective_from = 2025-09-24
+text_quality = 0.97
+
+[[act]]
+file = "ocr/polozhennya-pro-rektorat.ocr.txt"
+title = "Положення про ректорат"
+short_title = "Положення про ректорат"
+level = "university"
+issuer = "Вчена рада ПУЕТ"
+doc_number = "ДПСЯ ПД-9-7.1.2-87-05-23"
+adopted_on = 2023-06-30
+effective_from = 2023-06-30
+text_quality = 0.91
+
+[[act]]
+file = "ocr/polozhennya_pro_vchenu_radu.ocr.txt"
+title = "Положення про Вчену раду Полтавського університету економіки і торгівлі"
+short_title = "Положення про Вчену раду"
+level = "university"
+issuer = "Конференція трудового колективу ПУЕТ"
+doc_number = "ДПСЯ ПП-9-8.1-76-52-23"
+adopted_on = 2023-05-10
+effective_from = 2023-05-10
+text_quality = 0.93
+
+[[act]]
+file = "ocr/polozh_pro_nm_radu.ocr.txt"
+title = "Положення про науково-методичну раду університету"
+short_title = "Положення про НМР"
+level = "university"
+issuer = "Вчена рада ПУЕТ"
+doc_number = "ДПСЯ ПД-9-7.1.2-254-02-25"
+adopted_on = 2025-09-24
+effective_from = 2025-09-24
+text_quality = 0.98
+
+[[act]]
+file = "ocr/polozhennya-pro-viddil-kadriv.ocr.txt"
+title = "Положення про відділ кадрів"
+short_title = "Положення про відділ кадрів"
+level = "university"
+issuer = "Вчена рада ПУЕТ"
+doc_number = "ДПСЯ ПП-9-7.1.2-34-07-24"
+effective_from = 2024-04-01          # дату на титулі не розпізнано — уточніть
+text_quality = 0.92
+
+# --- Акти МОН і закони: офіційних текстів у проєкті немає. Нижче — ДЕМОНСТРАЦІЙНІ фрагменти.
+# Замініть їх офіційними редакціями (zakon.rada.gov.ua, mon.gov.ua) і приберіть is_sample.
+
+[[act]]
+file = "samples/zakon_pro_vyshchu_osvitu.SAMPLE.txt"
+title = "Закон України «Про вищу освіту» (демонстраційний фрагмент)"
+short_title = "ЗУ «Про вищу освіту»"
+level = "law"
+issuer = "Верховна Рада України"
+doc_number = "1556-VII"
+adopted_on = 2014-07-01
+effective_from = 2014-09-06
+is_sample = true
+
+[[act]]
+file = "samples/mon_akademichni_vidpustky.SAMPLE.txt"
+title = "Положення про академічні відпустки та повторне навчання (демонстраційний фрагмент)"
+short_title = "Положення МОН про академвідпустки (зразок)"
+level = "ministry"
+issuer = "МОН України"
+is_sample = true

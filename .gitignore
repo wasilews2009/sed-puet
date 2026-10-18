@@ -1,0 +1,38 @@
+# Секрети стенду: у репозиторії лише .env.example
+.env
+.env.*
+!.env.example
+*.local.env
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
+*.egg-info/
+
+# Node / інтерфейс
+node_modules/
+dist/
+*.tsbuildinfo
+test-results/
+playwright-report/
+modules/sed-frontend/e2e/screenshots/
+modules/sed-frontend/e2e/.tmp-*
+
+# Ключі й сертифікати (крім одноразових тестових фікстур)
+*.p12
+*.pfx
+*.pem
+*.key
+*.jks
+*.zs2
+*.dat
+!modules/sed-frontend/dev/fixtures/test.p12
+!modules/sed-frontend/dev/fixtures/ca.pem
+
+# Редактори й ОС
+.idea/
+.vscode/
+.DS_Store

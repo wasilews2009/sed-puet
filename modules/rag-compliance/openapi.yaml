@@ -1,0 +1,924 @@
+openapi: 3.1.0
+info:
+  title: СЕД ПУЕТ — нормативний аудит (RAG)
+  description: 'Перевірка проєктів наказів і розпоряджень на відповідність Статуту
+    ПУЕТ, положенням університету, законам України і наказам МОН: гібридний пошук
+    у Qdrant, граф LangGraph, локальна LLM. Звіт ШІ не має юридичної сили: рішення
+    приймає людина, що накладає КЕП.'
+  version: 0.1.0
+paths:
+  /api/v1/compliance/check:
+    post:
+      tags:
+      - Нормативний аудит
+      summary: Перевірити текст проєкту (без збереження)
+      description: 'Шукає релевантні пункти Статуту, положень ПУЕТ, законів і наказів
+        МОН, оцінює кожен пункт
+
+        проєкту і повертає звіт з переліком пунктів актів, які можуть бути порушені.
+        Підходить для
+
+        перевірки чернетки в редакторі чи проєкту, згенерованого асистентом; у БД
+        нічого не пише.'
+      operationId: check_text_api_v1_compliance_check_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CheckTextRequest'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ComplianceReport'
+        '401':
+          description: Немає або недійсний токен
+        '403':
+          description: Немає доступу
+        '422':
+          description: Некоректний запит
+        '503':
+          description: Векторна БД, сервер ембедингів або БД недоступні
+      security:
+      - HTTPBearer: []
+  /api/v1/documents/versions/{version_id}/compliance-checks:
+    post:
+      tags:
+      - Нормативний аудит
+      summary: Перевірити версію документа і зберегти результат
+      description: 'Текст береться з `document_versions.extracted_text`. Результат
+        пишеться в `ai_runs`
+
+        (`compliance_check`), `compliance_checks`, `compliance_findings`, `compliance_citations`;
+
+        якщо впевненість < 0.85 — запуск потрапляє в чергу ручної валідації оператора.'
+      operationId: check_version_api_v1_documents_versions__version_id__compliance_checks_post
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: version_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Version Id
+      - name: x-request-id
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+            maxLength: 128
+          - type: 'null'
+          title: X-Request-Id
+      requestBody:
+        content:
+          application/json:
+            schema:
+              anyOf:
+              - $ref: '#/components/schemas/CheckVersionRequest'
+              - type: 'null'
+              title: Body
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ComplianceReport'
+        '401':
+          description: Немає або недійсний токен
+        '403':
+          description: Немає доступу
+        '422':
+          description: Некоректний запит
+        '503':
+          description: Векторна БД, сервер ембедингів або БД недоступні
+        '404':
+          description: Версію не знайдено
+  /api/v1/regulations/search:
+    get:
+      tags:
+      - Нормативний корпус
+      summary: Гібридний пошук пунктів актів
+      operationId: search_api_v1_regulations_search_get
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: q
+        in: query
+        required: true
+        schema:
+          type: string
+          minLength: 3
+          maxLength: 2000
+          title: Q
+      - name: as_of
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+            format: date
+          - type: 'null'
+          title: As Of
+      - name: k
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 30
+          minimum: 1
+          default: 10
+          title: K
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SearchResponse'
+        '401':
+          description: Немає або недійсний токен
+        '403':
+          description: Немає доступу
+        '422':
+          description: Некоректний запит
+        '503':
+          description: Векторна БД, сервер ембедингів або БД недоступні
+  /api/v1/regulations:
+    post:
+      tags:
+      - Нормативний корпус
+      summary: Додати або переіндексувати акт
+      description: 'Сегментує текст на пункти, рахує ембединги і BM25, пише ревізію
+        в `regulatory_*` і Qdrant.
+
+        Повторне надсилання того самого тексту нічого не змінює; змінений текст створює
+        нову ревізію
+
+        (старі фрагменти лишаються для історичних цитат).'
+      operationId: ingest_act_api_v1_regulations_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/IngestActRequest'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IngestActResponse'
+        '401':
+          description: Немає або недійсний токен
+        '403':
+          description: Немає доступу
+        '422':
+          description: Некоректний запит
+        '503':
+          description: Векторна БД, сервер ембедингів або БД недоступні
+      security:
+      - HTTPBearer: []
+  /api/v1/regulations/{source_id}/status:
+    put:
+      tags:
+      - Нормативний корпус
+      summary: Змінити статус / строки чинності акта
+      description: 'Напр. акт скасовано: нові перевірки перестають його цитувати як
+        чинний, а посилання на нього
+
+        в проєктах стають зауваженням «посилання на нечинний акт».'
+      operationId: set_status_api_v1_regulations__source_id__status_put
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: source_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Source Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ActIn'
+      responses:
+        '204':
+          description: Successful Response
+        '401':
+          description: Немає або недійсний токен
+        '403':
+          description: Немає доступу
+        '422':
+          description: Некоректний запит
+        '503':
+          description: Векторна БД, сервер ембедингів або БД недоступні
+components:
+  schemas:
+    ActIn:
+      properties:
+        title:
+          type: string
+          maxLength: 1024
+          minLength: 3
+          title: Title
+        short_title:
+          anyOf:
+          - type: string
+            maxLength: 256
+          - type: 'null'
+          title: Short Title
+          examples:
+          - Статут ПУЕТ
+        level:
+          $ref: '#/components/schemas/RegulatoryLevel'
+        issuer:
+          type: string
+          maxLength: 256
+          minLength: 2
+          title: Issuer
+        status:
+          $ref: '#/components/schemas/RegulatoryStatus'
+          default: in_force
+        doc_number:
+          anyOf:
+          - type: string
+            maxLength: 64
+          - type: 'null'
+          title: Doc Number
+        adopted_on:
+          anyOf:
+          - type: string
+            format: date
+          - type: 'null'
+          title: Adopted On
+        effective_from:
+          anyOf:
+          - type: string
+            format: date
+          - type: 'null'
+          title: Effective From
+        effective_to:
+          anyOf:
+          - type: string
+            format: date
+          - type: 'null'
+          title: Effective To
+        source_url:
+          anyOf:
+          - type: string
+            maxLength: 2048
+          - type: 'null'
+          title: Source Url
+      additionalProperties: false
+      type: object
+      required:
+      - title
+      - level
+      - issuer
+      title: ActIn
+    CheckTextRequest:
+      properties:
+        text:
+          type: string
+          maxLength: 60000
+          minLength: 20
+          title: Text
+          description: Текст проєкту документа
+        as_of:
+          anyOf:
+          - type: string
+            format: date
+          - type: 'null'
+          title: As Of
+          description: Дата, на яку оцінюється чинність норм (за замовчуванням — сьогодні)
+      additionalProperties: false
+      type: object
+      required:
+      - text
+      title: CheckTextRequest
+    CheckVersionRequest:
+      properties:
+        as_of:
+          anyOf:
+          - type: string
+            format: date
+          - type: 'null'
+          title: As Of
+          description: За замовчуванням — дата реєстрації документа або сьогодні
+      additionalProperties: false
+      type: object
+      title: CheckVersionRequest
+    Citation:
+      properties:
+        rank:
+          type: integer
+          minimum: 1.0
+          title: Rank
+        chunk_id:
+          type: string
+          format: uuid
+          title: Chunk Id
+          description: regulatory_chunks.id = point id у Qdrant
+        source_id:
+          type: string
+          format: uuid
+          title: Source Id
+        source_title:
+          type: string
+          title: Source Title
+        source_short_title:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Source Short Title
+        doc_number:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Doc Number
+        issuer:
+          type: string
+          title: Issuer
+        level:
+          $ref: '#/components/schemas/RegulatoryLevel'
+        source_status:
+          $ref: '#/components/schemas/RegulatoryStatus'
+          description: Статус акта на момент перевірки
+        section_ref:
+          type: string
+          title: Section Ref
+          examples:
+          - розд. 7, п. 7.1.3
+        citation_label:
+          type: string
+          title: Citation Label
+          examples:
+          - Статут ПУЕТ, п. 7.1.3
+        quoted_text:
+          type: string
+          title: Quoted Text
+          description: Дослівна цитата з фрагмента акта
+        quote_verified:
+          type: boolean
+          title: Quote Verified
+          description: Цитату буквально знайдено у фрагменті корпусу
+        is_sample:
+          type: boolean
+          title: Is Sample
+          description: Демонстраційний текст акта, не офіційна редакція
+          default: false
+        dense_score:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Dense Score
+        sparse_score:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Sparse Score
+        fused_score:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Fused Score
+        rerank_score:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Rerank Score
+      type: object
+      required:
+      - rank
+      - chunk_id
+      - source_id
+      - source_title
+      - source_short_title
+      - doc_number
+      - issuer
+      - level
+      - source_status
+      - section_ref
+      - citation_label
+      - quoted_text
+      - quote_verified
+      - dense_score
+      - sparse_score
+      - fused_score
+      - rerank_score
+      title: Citation
+    ComplianceReport:
+      properties:
+        verdict:
+          $ref: '#/components/schemas/ComplianceVerdict'
+        verdict_label:
+          type: string
+          title: Verdict Label
+        summary:
+          type: string
+          title: Summary
+        confidence:
+          type: string
+          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          title: Confidence
+        confidence_threshold:
+          type: string
+          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          title: Confidence Threshold
+          default: '0.85'
+        requires_human_review:
+          type: boolean
+          title: Requires Human Review
+        review_reasons:
+          items:
+            type: string
+          type: array
+          title: Review Reasons
+        regulations_as_of:
+          type: string
+          format: date
+          title: Regulations As Of
+        findings:
+          items:
+            $ref: '#/components/schemas/Finding'
+          type: array
+          title: Findings
+        violated_clauses:
+          items:
+            $ref: '#/components/schemas/ViolatedClause'
+          type: array
+          title: Violated Clauses
+          description: Перелік конкретних пунктів актів, які можуть бути порушені
+        provisions:
+          items:
+            $ref: '#/components/schemas/ProvisionCoverage'
+          type: array
+          title: Provisions
+        sources_considered:
+          type: integer
+          title: Sources Considered
+        retrieval_config:
+          additionalProperties: true
+          type: object
+          title: Retrieval Config
+        model:
+          additionalProperties:
+            type: string
+          type: object
+          title: Model
+        warnings:
+          items:
+            type: string
+          type: array
+          title: Warnings
+        disclaimer:
+          type: string
+          title: Disclaimer
+          default: Звіт сформовано ШІ-асистентом і він не має юридичної сили. Остаточне
+            рішення щодо відповідності приймає відповідальна особа під час погодження
+            і накладання КЕП.
+        ai_run_id:
+          anyOf:
+          - type: string
+            format: uuid
+          - type: 'null'
+          title: Ai Run Id
+        check_id:
+          anyOf:
+          - type: string
+            format: uuid
+          - type: 'null'
+          title: Check Id
+        document_version_id:
+          anyOf:
+          - type: string
+            format: uuid
+          - type: 'null'
+          title: Document Version Id
+      type: object
+      required:
+      - verdict
+      - verdict_label
+      - summary
+      - confidence
+      - requires_human_review
+      - review_reasons
+      - regulations_as_of
+      - findings
+      - violated_clauses
+      - provisions
+      - sources_considered
+      - retrieval_config
+      - model
+      title: ComplianceReport
+    ComplianceVerdict:
+      type: string
+      enum:
+      - compliant
+      - issues_found
+      - non_compliant
+      - inconclusive
+      title: ComplianceVerdict
+    Coverage:
+      type: string
+      enum:
+      - strong
+      - weak
+      - none
+      title: Coverage
+    DraftFragment:
+      properties:
+        provision_id:
+          type: string
+          title: Provision Id
+        provision_label:
+          type: string
+          title: Provision Label
+          examples:
+          - п. 2 розпорядчої частини
+        text:
+          type: string
+          title: Text
+        char_start:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Char Start
+          description: Зміщення в тексті проєкту; None — цитату не знайдено дослівно
+        char_end:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Char End
+      type: object
+      required:
+      - provision_id
+      - provision_label
+      - text
+      - char_start
+      - char_end
+      title: DraftFragment
+    Finding:
+      properties:
+        ordinal:
+          type: integer
+          minimum: 1.0
+          title: Ordinal
+        severity:
+          $ref: '#/components/schemas/FindingSeverity'
+        severity_label:
+          type: string
+          title: Severity Label
+        category:
+          $ref: '#/components/schemas/FindingCategory'
+        category_label:
+          type: string
+          title: Category Label
+        title:
+          type: string
+          title: Title
+        explanation:
+          type: string
+          title: Explanation
+        recommendation:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Recommendation
+        fragment:
+          $ref: '#/components/schemas/DraftFragment'
+        confidence:
+          type: string
+          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          title: Confidence
+        requires_human_review:
+          type: boolean
+          title: Requires Human Review
+        issues:
+          items:
+            type: string
+          type: array
+          title: Issues
+          description: Чому впевненість знижено
+        verifier:
+          anyOf:
+          - additionalProperties: true
+            type: object
+          - type: 'null'
+          title: Verifier
+          description: Висновок незалежної повторної перевірки
+        origin:
+          type: string
+          title: Origin
+          description: llm — висновок моделі; reference_check — детермінована перевірка
+            посилань
+        citations:
+          items:
+            $ref: '#/components/schemas/Citation'
+          type: array
+          minItems: 1
+          title: Citations
+      type: object
+      required:
+      - ordinal
+      - severity
+      - severity_label
+      - category
+      - category_label
+      - title
+      - explanation
+      - recommendation
+      - fragment
+      - confidence
+      - requires_human_review
+      - origin
+      - citations
+      title: Finding
+    FindingCategory:
+      type: string
+      enum:
+      - contradiction
+      - outdated_reference
+      - missing_requisite
+      - dstu_formatting
+      - competence_violation
+      - deadline_violation
+      - personal_data
+      - other
+      title: FindingCategory
+    FindingSeverity:
+      type: string
+      enum:
+      - info
+      - minor
+      - major
+      - critical
+      title: FindingSeverity
+    IngestActRequest:
+      properties:
+        act:
+          $ref: '#/components/schemas/ActIn'
+        text:
+          type: string
+          maxLength: 3000000
+          minLength: 50
+          title: Text
+          description: Повний текст акта (UTF-8)
+        text_quality:
+          type: number
+          maximum: 1.0
+          minimum: 0.0
+          title: Text Quality
+          description: 1.0 — офіційний текст; < 1 — результат OCR
+          default: 1.0
+      additionalProperties: false
+      type: object
+      required:
+      - act
+      - text
+      title: IngestActRequest
+    IngestActResponse:
+      properties:
+        status:
+          $ref: '#/components/schemas/IngestStatus'
+        source_id:
+          type: string
+          format: uuid
+          title: Source Id
+        index_revision:
+          type: integer
+          title: Index Revision
+        chunks:
+          type: integer
+          title: Chunks
+        sections:
+          items:
+            type: string
+          type: array
+          title: Sections
+      type: object
+      required:
+      - status
+      - source_id
+      - index_revision
+      - chunks
+      - sections
+      title: IngestActResponse
+    IngestStatus:
+      type: string
+      enum:
+      - created
+      - reindexed
+      - unchanged
+      title: IngestStatus
+    ProvisionCoverage:
+      properties:
+        provision_id:
+          type: string
+          title: Provision Id
+        kind:
+          $ref: '#/components/schemas/ProvisionKind'
+        label:
+          type: string
+          title: Label
+        coverage:
+          $ref: '#/components/schemas/Coverage'
+        norms_considered:
+          items:
+            type: string
+          type: array
+          title: Norms Considered
+          description: Підписи норм, які бачила модель
+        assessed:
+          type: boolean
+          title: Assessed
+        no_issue_confidence:
+          anyOf:
+          - type: string
+            pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          - type: 'null'
+          title: No Issue Confidence
+          description: Впевненість, що пункт не суперечить знайденим нормам (якщо
+            зауважень немає)
+        query_rewritten:
+          type: boolean
+          title: Query Rewritten
+          default: false
+      type: object
+      required:
+      - provision_id
+      - kind
+      - label
+      - coverage
+      - norms_considered
+      - assessed
+      title: ProvisionCoverage
+    ProvisionKind:
+      type: string
+      enum:
+      - title
+      - preamble
+      - item
+      - basis
+      - signature
+      title: ProvisionKind
+    RegulatoryLevel:
+      type: string
+      enum:
+      - law
+      - cabinet
+      - ministry
+      - standard
+      - university
+      - unit
+      title: RegulatoryLevel
+    RegulatoryStatus:
+      type: string
+      enum:
+      - draft
+      - in_force
+      - amended
+      - repealed
+      title: RegulatoryStatus
+    SearchHit:
+      properties:
+        chunk_id:
+          type: string
+          format: uuid
+          title: Chunk Id
+        source_id:
+          type: string
+          format: uuid
+          title: Source Id
+        citation_label:
+          type: string
+          title: Citation Label
+        source_title:
+          type: string
+          title: Source Title
+        level:
+          $ref: '#/components/schemas/RegulatoryLevel'
+        status:
+          $ref: '#/components/schemas/RegulatoryStatus'
+        section_ref:
+          type: string
+          title: Section Ref
+        content:
+          type: string
+          title: Content
+        is_sample:
+          type: boolean
+          title: Is Sample
+        dense_score:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Dense Score
+        sparse_score:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Sparse Score
+        fused_score:
+          type: number
+          title: Fused Score
+        rerank_score:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Rerank Score
+      type: object
+      required:
+      - chunk_id
+      - source_id
+      - citation_label
+      - source_title
+      - level
+      - status
+      - section_ref
+      - content
+      - is_sample
+      - dense_score
+      - sparse_score
+      - fused_score
+      - rerank_score
+      title: SearchHit
+    SearchResponse:
+      properties:
+        coverage:
+          $ref: '#/components/schemas/Coverage'
+        as_of:
+          type: string
+          format: date
+          title: As Of
+        hits:
+          items:
+            $ref: '#/components/schemas/SearchHit'
+          type: array
+          title: Hits
+      type: object
+      required:
+      - coverage
+      - as_of
+      - hits
+      title: SearchResponse
+    ViolatedClause:
+      properties:
+        citation_label:
+          type: string
+          title: Citation Label
+        source_title:
+          type: string
+          title: Source Title
+        section_ref:
+          type: string
+          title: Section Ref
+        chunk_id:
+          type: string
+          format: uuid
+          title: Chunk Id
+        quoted_text:
+          type: string
+          title: Quoted Text
+        finding_ordinals:
+          items:
+            type: integer
+          type: array
+          title: Finding Ordinals
+        max_severity:
+          $ref: '#/components/schemas/FindingSeverity'
+        max_confidence:
+          type: string
+          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          title: Max Confidence
+      type: object
+      required:
+      - citation_label
+      - source_title
+      - section_ref
+      - chunk_id
+      - quoted_text
+      - finding_ordinals
+      - max_severity
+      - max_confidence
+      title: ViolatedClause
+      description: Пункт акта, який може бути порушено (агрегат по зауваженнях).
+  securitySchemes:
+    HTTPBearer:
+      type: http
+      description: Access token Keycloak (realm puet)
+      scheme: bearer
+      bearerFormat: JWT
+servers:
+- url: https://sed.puet.local

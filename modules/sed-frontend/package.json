@@ -1,0 +1,43 @@
+{
+  "name": "sed-frontend",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Веб-інтерфейс СЕД ПУЕТ (React + TypeScript), споживає API sed-app",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc -b --noEmit",
+    "gen:api": "openapi-typescript ../sed-app/openapi.yaml -o src/api/schema.d.ts",
+    "test": "vitest run",
+    "e2e": "playwright test"
+  },
+  "dependencies": {
+    "@tanstack/react-query": "5.59.20",
+    "asn1js": "3.0.5",
+    "openapi-fetch": "0.13.0",
+    "pkijs": "3.2.4",
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
+    "react-router-dom": "6.28.0"
+  },
+  "devDependencies": {
+    "@axe-core/playwright": "^4.10.1",
+    "@playwright/test": "1.56.1",
+    "@testing-library/jest-dom": "6.6.3",
+    "@testing-library/react": "16.0.1",
+    "@types/node": "22.9.0",
+    "@types/react": "18.3.12",
+    "@types/react-dom": "18.3.1",
+    "@vitejs/plugin-react": "4.3.3",
+    "autoprefixer": "10.4.20",
+    "jsdom": "25.0.1",
+    "openapi-typescript": "7.4.3",
+    "postcss": "8.4.49",
+    "tailwindcss": "3.4.15",
+    "typescript": "5.6.3",
+    "vite": "5.4.11",
+    "vitest": "2.1.5"
+  }
+}

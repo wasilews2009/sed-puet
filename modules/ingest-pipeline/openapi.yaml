@@ -1,0 +1,621 @@
+openapi: 3.1.0
+info:
+  title: СЕД ПУЕТ — інжест документів
+  description: Прийом PDF/зображень, OCR і вилучення реквізитів за ДСТУ 4163:2020
+    локальною LLM.
+  version: 0.1.0
+paths:
+  /api/v1/documents/ingest:
+    post:
+      tags:
+      - Інжест документів
+      summary: Завантажити вхідний документ і вилучити реквізити (ДСТУ 4163:2020)
+      description: Зберігає оригінал у MinIO, розпізнає текст (текстовий шар PDF або
+        Tesseract ukr+eng), вилучає реквізити локальною LLM зі structured output і
+        повертає їх із confidence score. Створюється картка документа в статусі «чернетка».
+        Реквізити з впевненістю < 0.85 потрапляють у чергу ручної валідації; юридичної
+        сили документ ШІ не надає.
+      operationId: ingest_document_api_v1_documents_ingest_post
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Body_ingest_document_api_v1_documents_ingest_post'
+        required: true
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IngestResponse'
+        '401':
+          description: Немає або недійсний токен Keycloak
+        '403':
+          description: Немає права реєструвати документи підрозділу
+        '415':
+          description: Формат файлу не підтримується (перевіряється за вмістом)
+        '422':
+          description: Файл пошкоджено, захищено паролем, завеликий або невалідні
+            поля форми
+        '503':
+          description: Сховище файлів недоступне
+      security:
+      - HTTPBearer: []
+components:
+  schemas:
+    AccessLevel:
+      type: string
+      enum:
+      - public
+      - internal
+      - restricted
+      - personal_data
+      title: AccessLevel
+    AiRunRefs:
+      properties:
+        ocr:
+          type: string
+          format: uuid
+          title: Ocr
+        extraction:
+          type: string
+          format: uuid
+          title: Extraction
+      type: object
+      required:
+      - ocr
+      - extraction
+      title: AiRunRefs
+    Body_ingest_document_api_v1_documents_ingest_post:
+      properties:
+        file:
+          type: string
+          contentMediaType: application/octet-stream
+          title: File
+          description: PDF або зображення (PNG, JPEG, TIFF, WEBP)
+        org_unit_id:
+          type: string
+          format: uuid
+          title: Org Unit Id
+          description: Підрозділ, у якому реєструється документ
+        direction:
+          anyOf:
+          - $ref: '#/components/schemas/DocumentDirection'
+          - type: 'null'
+          description: За замовчуванням — з виду документа
+        access_level:
+          anyOf:
+          - $ref: '#/components/schemas/AccessLevel'
+          - type: 'null'
+          description: Гриф доступу; може бути посилено автоматично
+        correspondent_name:
+          anyOf:
+          - type: string
+            maxLength: 512
+          - type: 'null'
+          title: Correspondent Name
+          description: Обов'язково для вхідних
+      type: object
+      required:
+      - file
+      - org_unit_id
+      title: Body_ingest_document_api_v1_documents_ingest_post
+    DocumentDirection:
+      type: string
+      enum:
+      - internal
+      - incoming
+      - outgoing
+      title: DocumentDirection
+    DocumentKind:
+      type: string
+      enum:
+      - order_main
+      - order_personnel
+      - order_students
+      - directive
+      - application
+      - memo
+      - report_memo
+      - explanatory_note
+      - letter
+      - protocol
+      - regulation
+      - other
+      title: DocumentKind
+    DocumentRequisites:
+      properties:
+        document_type:
+          $ref: '#/components/schemas/FieldResult_DocumentKind_'
+        document_date:
+          $ref: '#/components/schemas/FieldResult_date_'
+        registration_number:
+          $ref: '#/components/schemas/FieldResult_str_'
+        author:
+          $ref: '#/components/schemas/FieldResult_Person_'
+        title:
+          $ref: '#/components/schemas/FieldResult_str_'
+        summary:
+          $ref: '#/components/schemas/FieldResult_str_'
+        interested_parties:
+          $ref: '#/components/schemas/FieldResult_list_InterestedParty__'
+        document_type_label:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Document Type Label
+          readOnly: true
+        confidence:
+          type: string
+          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          title: Confidence
+          description: 'Впевненість документа = мінімум по реквізитах: один слабкий
+            реквізит → ручна валідація.'
+          readOnly: true
+        requires_human_review:
+          type: boolean
+          title: Requires Human Review
+          readOnly: true
+      type: object
+      required:
+      - document_type
+      - document_date
+      - registration_number
+      - author
+      - title
+      - summary
+      - interested_parties
+      - document_type_label
+      - confidence
+      - requires_human_review
+      title: DocumentRequisites
+      description: Валідовані реквізити вхідного документа.
+    FieldResult_DocumentKind_:
+      properties:
+        value:
+          anyOf:
+          - $ref: '#/components/schemas/DocumentKind'
+          - type: 'null'
+        confidence:
+          type: string
+          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          title: Confidence
+          description: Підсумкова впевненість, 0…1
+        evidence:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Evidence
+          description: Цитата з тексту, на якій ґрунтується значення
+        page_no:
+          anyOf:
+          - type: integer
+            minimum: 1.0
+          - type: 'null'
+          title: Page No
+        issues:
+          items:
+            type: string
+          type: array
+          title: Issues
+          description: Чому впевненість знижено
+        requires_human_review:
+          type: boolean
+          title: Requires Human Review
+          readOnly: true
+      type: object
+      required:
+      - confidence
+      - requires_human_review
+      title: FieldResult[DocumentKind]
+    FieldResult_Person_:
+      properties:
+        value:
+          anyOf:
+          - $ref: '#/components/schemas/Person'
+          - type: 'null'
+        confidence:
+          type: string
+          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          title: Confidence
+          description: Підсумкова впевненість, 0…1
+        evidence:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Evidence
+          description: Цитата з тексту, на якій ґрунтується значення
+        page_no:
+          anyOf:
+          - type: integer
+            minimum: 1.0
+          - type: 'null'
+          title: Page No
+        issues:
+          items:
+            type: string
+          type: array
+          title: Issues
+          description: Чому впевненість знижено
+        requires_human_review:
+          type: boolean
+          title: Requires Human Review
+          readOnly: true
+      type: object
+      required:
+      - confidence
+      - requires_human_review
+      title: FieldResult[Person]
+    FieldResult_date_:
+      properties:
+        value:
+          anyOf:
+          - type: string
+            format: date
+          - type: 'null'
+          title: Value
+        confidence:
+          type: string
+          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          title: Confidence
+          description: Підсумкова впевненість, 0…1
+        evidence:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Evidence
+          description: Цитата з тексту, на якій ґрунтується значення
+        page_no:
+          anyOf:
+          - type: integer
+            minimum: 1.0
+          - type: 'null'
+          title: Page No
+        issues:
+          items:
+            type: string
+          type: array
+          title: Issues
+          description: Чому впевненість знижено
+        requires_human_review:
+          type: boolean
+          title: Requires Human Review
+          readOnly: true
+      type: object
+      required:
+      - confidence
+      - requires_human_review
+      title: FieldResult[date]
+    FieldResult_list_InterestedParty__:
+      properties:
+        value:
+          anyOf:
+          - items:
+              $ref: '#/components/schemas/InterestedParty'
+            type: array
+          - type: 'null'
+          title: Value
+        confidence:
+          type: string
+          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          title: Confidence
+          description: Підсумкова впевненість, 0…1
+        evidence:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Evidence
+          description: Цитата з тексту, на якій ґрунтується значення
+        page_no:
+          anyOf:
+          - type: integer
+            minimum: 1.0
+          - type: 'null'
+          title: Page No
+        issues:
+          items:
+            type: string
+          type: array
+          title: Issues
+          description: Чому впевненість знижено
+        requires_human_review:
+          type: boolean
+          title: Requires Human Review
+          readOnly: true
+      type: object
+      required:
+      - confidence
+      - requires_human_review
+      title: FieldResult[list[InterestedParty]]
+    FieldResult_str_:
+      properties:
+        value:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Value
+        confidence:
+          type: string
+          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          title: Confidence
+          description: Підсумкова впевненість, 0…1
+        evidence:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Evidence
+          description: Цитата з тексту, на якій ґрунтується значення
+        page_no:
+          anyOf:
+          - type: integer
+            minimum: 1.0
+          - type: 'null'
+          title: Page No
+        issues:
+          items:
+            type: string
+          type: array
+          title: Issues
+          description: Чому впевненість знижено
+        requires_human_review:
+          type: boolean
+          title: Requires Human Review
+          readOnly: true
+      type: object
+      required:
+      - confidence
+      - requires_human_review
+      title: FieldResult[str]
+    IngestResponse:
+      properties:
+        document_id:
+          type: string
+          format: uuid
+          title: Document Id
+        version_id:
+          type: string
+          format: uuid
+          title: Version Id
+        status:
+          $ref: '#/components/schemas/IngestStatus'
+        document_type_code:
+          type: string
+          title: Document Type Code
+          description: Код виду документа в довіднику СЕД, куди зараховано картку
+        direction:
+          $ref: '#/components/schemas/DocumentDirection'
+        access_level:
+          $ref: '#/components/schemas/AccessLevel'
+        file:
+          $ref: '#/components/schemas/StoredFileInfo'
+        ocr:
+          $ref: '#/components/schemas/OcrSummary'
+        requisites:
+          anyOf:
+          - $ref: '#/components/schemas/DocumentRequisites'
+          - type: 'null'
+          description: Реквізити за ДСТУ 4163:2020; null — модель недоступна, потрібне
+            ручне введення
+        confidence:
+          type: string
+          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          title: Confidence
+          description: Підсумкова впевненість (мінімум по реквізитах)
+        confidence_threshold:
+          type: string
+          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          title: Confidence Threshold
+          default: '0.85'
+        requires_human_review:
+          type: boolean
+          title: Requires Human Review
+        review_reasons:
+          items:
+            type: string
+          type: array
+          title: Review Reasons
+        warnings:
+          items:
+            type: string
+          type: array
+          title: Warnings
+        duplicate_of:
+          anyOf:
+          - type: string
+            format: uuid
+          - type: 'null'
+          title: Duplicate Of
+          description: Документ з ідентичним файлом (SHA-256)
+        ai_runs:
+          $ref: '#/components/schemas/AiRunRefs'
+      type: object
+      required:
+      - document_id
+      - version_id
+      - status
+      - document_type_code
+      - direction
+      - access_level
+      - file
+      - ocr
+      - requisites
+      - confidence
+      - requires_human_review
+      - ai_runs
+      title: IngestResponse
+    IngestStatus:
+      type: string
+      enum:
+      - processed
+      - needs_review
+      - manual_entry_required
+      title: IngestStatus
+    InterestedParty:
+      properties:
+        full_name:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Full Name
+          description: ПІБ / ім'я та прізвище
+        position:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Position
+          description: Посада
+        org_unit:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Org Unit
+          description: Підрозділ або організація
+        role:
+          $ref: '#/components/schemas/PartyRole'
+      type: object
+      required:
+      - role
+      title: InterestedParty
+    OcrPageInfo:
+      properties:
+        page_no:
+          type: integer
+          title: Page No
+        source:
+          $ref: '#/components/schemas/TextSource'
+        quality:
+          type: string
+          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          title: Quality
+          description: 1.0 — текстовий шар PDF; для OCR — середня впевненість Tesseract
+        chars:
+          type: integer
+          title: Chars
+        note:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Note
+      type: object
+      required:
+      - page_no
+      - source
+      - quality
+      - chars
+      title: OcrPageInfo
+    OcrSummary:
+      properties:
+        engine:
+          type: string
+          title: Engine
+        page_count:
+          type: integer
+          title: Page Count
+        pages_processed:
+          type: integer
+          title: Pages Processed
+        used_ocr:
+          type: boolean
+          title: Used Ocr
+        quality:
+          type: string
+          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          title: Quality
+        pages:
+          items:
+            $ref: '#/components/schemas/OcrPageInfo'
+          type: array
+          title: Pages
+      type: object
+      required:
+      - engine
+      - page_count
+      - pages_processed
+      - used_ocr
+      - quality
+      - pages
+      title: OcrSummary
+    PartyRole:
+      type: string
+      enum:
+      - addressee
+      - executor
+      - subject
+      - controller
+      - approver
+      - acknowledger
+      - other
+      title: PartyRole
+    Person:
+      properties:
+        full_name:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Full Name
+          description: ПІБ / ім'я та прізвище
+        position:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Position
+          description: Посада
+        org_unit:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Org Unit
+          description: Підрозділ або організація
+      type: object
+      title: Person
+    StoredFileInfo:
+      properties:
+        file_name:
+          type: string
+          title: File Name
+        mime_type:
+          type: string
+          title: Mime Type
+        size_bytes:
+          type: integer
+          title: Size Bytes
+        sha256:
+          type: string
+          title: Sha256
+        storage_bucket:
+          type: string
+          title: Storage Bucket
+        storage_key:
+          type: string
+          title: Storage Key
+        storage_version_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Storage Version Id
+      type: object
+      required:
+      - file_name
+      - mime_type
+      - size_bytes
+      - sha256
+      - storage_bucket
+      - storage_key
+      - storage_version_id
+      title: StoredFileInfo
+    TextSource:
+      type: string
+      enum:
+      - text_layer
+      - ocr
+      - empty
+      title: TextSource
+  securitySchemes:
+    HTTPBearer:
+      type: http
+      description: Access token Keycloak (realm puet)
+      scheme: bearer
+      bearerFormat: JWT
+servers:
+- url: https://sed.puet.local

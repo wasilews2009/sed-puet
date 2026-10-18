@@ -1,0 +1,1745 @@
+openapi: 3.1.0
+info:
+  title: СЕД ПУЕТ — маршрути погодження
+  description: Визначення учасників погодження за шаблоном, послідовне візування з КЕП; ключі підпису (КЕП Дії, ПриватБанку,
+    інших КНЕДП) і внутрішні ключі АІ-СЕД ПУЕТ.
+  version: 0.1.0
+paths:
+  /api/v1/documents/{document_id}/route-preview:
+    post:
+      tags:
+      - Маршрути погодження
+      summary: Визначити посадових осіб, які мають завізувати документ (без збереження)
+      operationId: preview_api_v1_documents__document_id__route_preview_post
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: document_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Document Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RouteRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RoutePlanView'
+        '401':
+          description: Немає або недійсний токен Keycloak
+        '403':
+          description: Немає права на цю дію (не автор/ініціатор/учасник кроку, сервісний акаунт ШІ)
+        '404':
+          description: Документ, маршрут або крок не знайдено
+        '409':
+          description: 'Неприпустимо в поточному стані: етап ще не настав, рішення вже прийнято, посада вакантна, немає/кілька
+            шаблонів, відкриті критичні зауваження'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/documents/{document_id}/routes:
+    post:
+      tags:
+      - Маршрути погодження
+      summary: Створити маршрут погодження за шаблоном і (за замовчуванням) запустити його
+      operationId: create_route_api_v1_documents__document_id__routes_post
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: document_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Document Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RouteCreate'
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RouteView'
+        '401':
+          description: Немає або недійсний токен Keycloak
+        '403':
+          description: Немає права на цю дію (не автор/ініціатор/учасник кроку, сервісний акаунт ШІ)
+        '404':
+          description: Документ, маршрут або крок не знайдено
+        '409':
+          description: 'Неприпустимо в поточному стані: етап ще не настав, рішення вже прийнято, посада вакантна, немає/кілька
+            шаблонів, відкриті критичні зауваження'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/documents/{document_id}/route:
+    get:
+      tags:
+      - Маршрути погодження
+      summary: Останній маршрут документа
+      operationId: document_route_api_v1_documents__document_id__route_get
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: document_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Document Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RouteView'
+        '401':
+          description: Немає або недійсний токен Keycloak
+        '403':
+          description: Немає права на цю дію (не автор/ініціатор/учасник кроку, сервісний акаунт ШІ)
+        '404':
+          description: Документ, маршрут або крок не знайдено
+        '409':
+          description: 'Неприпустимо в поточному стані: етап ще не настав, рішення вже прийнято, посада вакантна, немає/кілька
+            шаблонів, відкриті критичні зауваження'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/routes/{route_id}:
+    get:
+      tags:
+      - Маршрути погодження
+      summary: Стан маршруту
+      operationId: get_route_api_v1_routes__route_id__get
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: route_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Route Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RouteView'
+        '401':
+          description: Немає або недійсний токен Keycloak
+        '403':
+          description: Немає права на цю дію (не автор/ініціатор/учасник кроку, сервісний акаунт ШІ)
+        '404':
+          description: Документ, маршрут або крок не знайдено
+        '409':
+          description: 'Неприпустимо в поточному стані: етап ще не настав, рішення вже прийнято, посада вакантна, немає/кілька
+            шаблонів, відкриті критичні зауваження'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/routes/{route_id}/start:
+    post:
+      tags:
+      - Маршрути погодження
+      summary: Запустити створений маршрут
+      operationId: start_route_api_v1_routes__route_id__start_post
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: route_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Route Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RouteStart'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RouteView'
+        '401':
+          description: Немає або недійсний токен Keycloak
+        '403':
+          description: Немає права на цю дію (не автор/ініціатор/учасник кроку, сервісний акаунт ШІ)
+        '404':
+          description: Документ, маршрут або крок не знайдено
+        '409':
+          description: 'Неприпустимо в поточному стані: етап ще не настав, рішення вже прийнято, посада вакантна, немає/кілька
+            шаблонів, відкриті критичні зауваження'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/routes/{route_id}/cancel:
+    post:
+      tags:
+      - Маршрути погодження
+      summary: Скасувати маршрут (ініціатор або автор)
+      operationId: cancel_route_api_v1_routes__route_id__cancel_post
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: route_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Route Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RouteCancel'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RouteView'
+        '401':
+          description: Немає або недійсний токен Keycloak
+        '403':
+          description: Немає права на цю дію (не автор/ініціатор/учасник кроку, сервісний акаунт ШІ)
+        '404':
+          description: Документ, маршрут або крок не знайдено
+        '409':
+          description: 'Неприпустимо в поточному стані: етап ще не настав, рішення вже прийнято, посада вакантна, немає/кілька
+            шаблонів, відкриті критичні зауваження'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/approval-tasks:
+    get:
+      tags:
+      - Маршрути погодження
+      summary: Мої документи на візування (активні кроки)
+      operationId: inbox_api_v1_approval_tasks_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: '#/components/schemas/InboxItem'
+                type: array
+                title: Response Inbox Api V1 Approval Tasks Get
+        '401':
+          description: Немає або недійсний токен Keycloak
+        '403':
+          description: Немає права на цю дію (не автор/ініціатор/учасник кроку, сервісний акаунт ШІ)
+        '404':
+          description: Документ, маршрут або крок не знайдено
+        '409':
+          description: 'Неприпустимо в поточному стані: етап ще не настав, рішення вже прийнято, посада вакантна, немає/кілька
+            шаблонів, відкриті критичні зауваження'
+      security:
+      - HTTPBearer: []
+  /api/v1/steps/{step_id}/signing-request:
+    get:
+      tags:
+      - Маршрути погодження
+      summary: 'Що підписувати: версія документа і її SHA-256'
+      operationId: signing_request_api_v1_steps__step_id__signing_request_get
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: step_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Step Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SigningRequestView'
+        '401':
+          description: Немає або недійсний токен Keycloak
+        '403':
+          description: Немає права на цю дію (не автор/ініціатор/учасник кроку, сервісний акаунт ШІ)
+        '404':
+          description: Документ, маршрут або крок не знайдено
+        '409':
+          description: 'Неприпустимо в поточному стані: етап ще не настав, рішення вже прийнято, посада вакантна, немає/кілька
+            шаблонів, відкриті критичні зауваження'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/steps/{step_id}/sign:
+    post:
+      tags:
+      - Маршрути погодження
+      summary: Завізувати крок із КЕП; наступний етап активується лише після валідного підпису
+      operationId: sign_step_api_v1_steps__step_id__sign_post
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: step_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Step Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SignRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RouteView'
+        '401':
+          description: Немає або недійсний токен Keycloak
+        '403':
+          description: Немає права на цю дію (не автор/ініціатор/учасник кроку, сервісний акаунт ШІ)
+        '404':
+          description: Документ, маршрут або крок не знайдено
+        '409':
+          description: 'Неприпустимо в поточному стані: етап ще не настав, рішення вже прийнято, посада вакантна, немає/кілька
+            шаблонів, відкриті критичні зауваження'
+        '422':
+          description: Підпис КЕП не пройшов перевірку (причина в detail)
+  /api/v1/steps/{step_id}/decision:
+    post:
+      tags:
+      - Маршрути погодження
+      summary: Відхилити крок (з причиною) або погодити крок, що не потребує КЕП
+      operationId: decide_step_api_v1_steps__step_id__decision_post
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: step_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Step Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StepDecision'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RouteView'
+        '401':
+          description: Немає або недійсний токен Keycloak
+        '403':
+          description: Немає права на цю дію (не автор/ініціатор/учасник кроку, сервісний акаунт ШІ)
+        '404':
+          description: Документ, маршрут або крок не знайдено
+        '409':
+          description: 'Неприпустимо в поточному стані: етап ще не настав, рішення вже прийнято, посада вакантна, немає/кілька
+            шаблонів, відкриті критичні зауваження'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/kep/challenges:
+    post:
+      tags:
+      - Ключі підпису
+      summary: Отримати виклик для доказу володіння ключем КЕП
+      operationId: challenge_api_v1_kep_challenges_post
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChallengeView'
+        '401':
+          description: Немає або недійсний токен Keycloak
+        '403':
+          description: Не власник ключа і не адміністратор ключів
+        '404':
+          description: Ключ не знайдено або внутрішній ЦСК вимкнено
+        '422':
+          description: Підпис або сертифікат не пройшли перевірку; надіслано файл з особистим ключем
+      security:
+      - HTTPBearer: []
+  /api/v1/kep/keys:
+    post:
+      tags:
+      - Ключі підпису
+      summary: Закріпити за собою ключ КЕП (підпис виклику; файл-ключ на сервер не передається)
+      operationId: register_key_api_v1_kep_keys_post
+      security:
+      - HTTPBearer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/KeyRegisterRequest'
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/KeyBindingView'
+        '401':
+          description: Немає або недійсний токен Keycloak
+        '403':
+          description: Не власник ключа і не адміністратор ключів
+        '404':
+          description: Ключ не знайдено або внутрішній ЦСК вимкнено
+        '422':
+          description: Підпис або сертифікат не пройшли перевірку; надіслано файл з особистим ключем
+    get:
+      tags:
+      - Ключі підпису
+      summary: Мої ключі підпису
+      operationId: my_keys_api_v1_kep_keys_get
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: include_revoked
+        in: query
+        required: false
+        schema:
+          type: boolean
+          default: false
+          title: Include Revoked
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/KeyBindingView'
+                title: Response My Keys Api V1 Kep Keys Get
+        '401':
+          description: Немає або недійсний токен Keycloak
+        '403':
+          description: Не власник ключа і не адміністратор ключів
+        '404':
+          description: Ключ не знайдено або внутрішній ЦСК вимкнено
+        '422':
+          description: Підпис або сертифікат не пройшли перевірку; надіслано файл з особистим ключем
+  /api/v1/kep/keys/{binding_id}/revoke:
+    post:
+      tags:
+      - Ключі підпису
+      summary: Відкріпити ключ (власник або адміністратор ключів)
+      operationId: revoke_key_api_v1_kep_keys__binding_id__revoke_post
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: binding_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Binding Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/KeyRevokeRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/KeyBindingView'
+        '401':
+          description: Немає або недійсний токен Keycloak
+        '403':
+          description: Не власник ключа і не адміністратор ключів
+        '404':
+          description: Ключ не знайдено або внутрішній ЦСК вимкнено
+        '422':
+          description: Підпис або сертифікат не пройшли перевірку; надіслано файл з особистим ключем
+  /api/v1/kep/certificates/inspect:
+    post:
+      tags:
+      - Ключі підпису
+      summary: 'Перевірити сертифікат (.cer/.crt/.pem): власник, КНЕДП, строк, РНОКПП (маскований)'
+      operationId: inspect_certificate_api_v1_kep_certificates_inspect_post
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Body_inspect_certificate_api_v1_kep_certificates_inspect_post'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CertificateCheckView'
+        '401':
+          description: Немає або недійсний токен Keycloak
+        '403':
+          description: Не власник ключа і не адміністратор ключів
+        '404':
+          description: Ключ не знайдено або внутрішній ЦСК вимкнено
+        '422':
+          description: Підпис або сертифікат не пройшли перевірку; надіслано файл з особистим ключем
+      security:
+      - HTTPBearer: []
+  /api/v1/kep/signatures/verify:
+    post:
+      tags:
+      - Ключі підпису
+      summary: Перевірити підпис CAdES над SHA-256 (без прийняття візи)
+      operationId: verify_signature_api_v1_kep_signatures_verify_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SignatureVerifyRequest'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SignatureVerifyView'
+        '401':
+          description: Немає або недійсний токен Keycloak
+        '403':
+          description: Не власник ключа і не адміністратор ключів
+        '404':
+          description: Ключ не знайдено або внутрішній ЦСК вимкнено
+        '422':
+          description: Підпис або сертифікат не пройшли перевірку; надіслано файл з особистим ключем
+      security:
+      - HTTPBearer: []
+  /api/v1/kep/internal/ca.pem:
+    get:
+      tags:
+      - Ключі підпису
+      summary: Ланцюжок сертифікатів внутрішнього ЦСК АІ-СЕД ПУЕТ
+      operationId: ca_chain_api_v1_kep_internal_ca_pem_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/x-pem-file: {}
+  /api/v1/kep/internal/crl:
+    get:
+      tags:
+      - Ключі підпису
+      summary: Список відкликаних внутрішніх сертифікатів (CRL, DER)
+      operationId: crl_api_v1_kep_internal_crl_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/pkix-crl: {}
+  /api/v1/kep/internal/certificates/csr:
+    post:
+      tags:
+      - Ключі підпису
+      summary: Отримати внутрішній сертифікат за CSR (ключ згенеровано на вашому комп'ютері)
+      operationId: enroll_csr_api_v1_kep_internal_certificates_csr_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CsrEnrollRequest'
+        required: true
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InternalCertView'
+        '401':
+          description: Немає або недійсний токен Keycloak
+        '403':
+          description: Не власник ключа і не адміністратор ключів
+        '404':
+          description: Ключ не знайдено або внутрішній ЦСК вимкнено
+        '422':
+          description: Підпис або сертифікат не пройшли перевірку; надіслано файл з особистим ключем
+      security:
+      - HTTPBearer: []
+  /api/v1/kep/internal/key-file:
+    post:
+      tags:
+      - Ключі підпису
+      summary: Згенерувати внутрішній файл-ключ (PKCS#12, видається один раз)
+      operationId: key_file_api_v1_kep_internal_key_file_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/KeyFileRequest'
+        required: true
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/x-pkcs12: {}
+        '401':
+          description: Немає або недійсний токен Keycloak
+        '403':
+          description: Не власник ключа і не адміністратор ключів
+        '404':
+          description: Ключ не знайдено або внутрішній ЦСК вимкнено
+        '422':
+          description: Підпис або сертифікат не пройшли перевірку; надіслано файл з особистим ключем
+      security:
+      - HTTPBearer: []
+  /api/v1/kep/internal/certificates/{serial}/revoke:
+    post:
+      tags:
+      - Ключі підпису
+      summary: Відкликати внутрішній сертифікат (власник або адміністратор ключів)
+      operationId: revoke_internal_api_v1_kep_internal_certificates__serial__revoke_post
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: serial
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Serial
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/KeyRevokeRequest'
+      responses:
+        '204':
+          description: Successful Response
+        '401':
+          description: Немає або недійсний токен Keycloak
+        '403':
+          description: Не власник ключа і не адміністратор ключів
+        '404':
+          description: Ключ не знайдено або внутрішній ЦСК вимкнено
+        '422':
+          description: Підпис або сертифікат не пройшли перевірку; надіслано файл з особистим ключем
+  /api/v1/dev/steps/{step_id}/mock-signature:
+    post:
+      tags:
+      - Імітація КЕП (лише development/test)
+      summary: Згенерувати імітаційний КЕП поточного користувача для кроку
+      operationId: mock_signature_api_v1_dev_steps__step_id__mock_signature_post
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: step_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Step Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MockSignature'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+components:
+  schemas:
+    AssigneeOverride:
+      properties:
+        stage_no:
+          type: integer
+          minimum: 1.0
+          title: Stage No
+        ordinal:
+          type: integer
+          minimum: 1.0
+          title: Ordinal
+        user_id:
+          type: string
+          format: uuid
+          title: User Id
+      additionalProperties: false
+      type: object
+      required:
+      - stage_no
+      - ordinal
+      - user_id
+      title: AssigneeOverride
+    Body_inspect_certificate_api_v1_kep_certificates_inspect_post:
+      properties:
+        file:
+          type: string
+          contentMediaType: application/octet-stream
+          title: File
+      type: object
+      required:
+      - file
+      title: Body_inspect_certificate_api_v1_kep_certificates_inspect_post
+    CertificateCheckView:
+      properties:
+        level:
+          type: string
+          enum:
+          - qualified
+          - internal
+          - mock
+          - other
+          title: Level
+        level_uk:
+          type: string
+          title: Level Uk
+        certificate:
+          additionalProperties: true
+          type: object
+          title: Certificate
+        usable_for_signing:
+          type: boolean
+          title: Usable For Signing
+        problems:
+          items:
+            type: string
+          type: array
+          title: Problems
+        trusted_issuer:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Trusted Issuer
+          description: 'None — сертифікат ДСТУ: ланцюжок перевіряє провайдер КНЕДП'
+        registered_to_me:
+          type: boolean
+          title: Registered To Me
+      type: object
+      required:
+      - level
+      - level_uk
+      - certificate
+      - usable_for_signing
+      - problems
+      - trusted_issuer
+      - registered_to_me
+      title: CertificateCheckView
+      description: 'Розбір сертифіката. Особистий ключ сюди не надсилається: файл-ключ перевіряє `keytool inspect`.'
+    ChallengeView:
+      properties:
+        challenge_token:
+          type: string
+          title: Challenge Token
+        data_base64:
+          type: string
+          title: Data Base64
+          description: 'Байти виклику: підписати як файл (CAdES detached)'
+        data_text:
+          type: string
+          title: Data Text
+        content_sha256:
+          type: string
+          title: Content Sha256
+        expires_at:
+          type: string
+          format: date-time
+          title: Expires At
+        instructions_uk:
+          type: string
+          title: Instructions Uk
+      type: object
+      required:
+      - challenge_token
+      - data_base64
+      - data_text
+      - content_sha256
+      - expires_at
+      - instructions_uk
+      title: ChallengeView
+      description: Що підписати своїм ключем, щоб довести володіння ним (proof of possession).
+    CsrEnrollRequest:
+      properties:
+        csr_pem:
+          type: string
+          maxLength: 20000
+          minLength: 100
+          title: Csr Pem
+          description: PKCS#10, згенерований `keytool new-key` на комп'ютері користувача
+      additionalProperties: false
+      type: object
+      required:
+      - csr_pem
+      title: CsrEnrollRequest
+    HTTPValidationError:
+      properties:
+        detail:
+          items:
+            $ref: '#/components/schemas/ValidationError'
+          type: array
+          title: Detail
+      type: object
+      title: HTTPValidationError
+    InboxItem:
+      properties:
+        step_id:
+          type: string
+          format: uuid
+          title: Step Id
+        route_id:
+          type: string
+          format: uuid
+          title: Route Id
+        document_id:
+          type: string
+          format: uuid
+          title: Document Id
+        document_title:
+          type: string
+          title: Document Title
+        document_type_code:
+          type: string
+          title: Document Type Code
+        step_kind:
+          $ref: '#/components/schemas/StepKind'
+        title_uk:
+          type: string
+          title: Title Uk
+        requires_kep:
+          type: boolean
+          title: Requires Kep
+        activated_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Activated At
+        due_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Due At
+        is_overdue:
+          type: boolean
+          title: Is Overdue
+        is_delegated:
+          type: boolean
+          title: Is Delegated
+      type: object
+      required:
+      - step_id
+      - route_id
+      - document_id
+      - document_title
+      - document_type_code
+      - step_kind
+      - title_uk
+      - requires_kep
+      - activated_at
+      - due_at
+      - is_overdue
+      - is_delegated
+      title: InboxItem
+    InternalCertView:
+      properties:
+        serial:
+          type: string
+          title: Serial
+        subject_cn:
+          type: string
+          title: Subject Cn
+        fingerprint_sha256:
+          type: string
+          title: Fingerprint Sha256
+        valid_from:
+          type: string
+          format: date-time
+          title: Valid From
+        valid_to:
+          type: string
+          format: date-time
+          title: Valid To
+        certificate_pem:
+          type: string
+          title: Certificate Pem
+        chain_pem:
+          type: string
+          title: Chain Pem
+        notice_uk:
+          type: string
+          title: Notice Uk
+      type: object
+      required:
+      - serial
+      - subject_cn
+      - fingerprint_sha256
+      - valid_from
+      - valid_to
+      - certificate_pem
+      - chain_pem
+      - notice_uk
+      title: InternalCertView
+    KeyBindingView:
+      properties:
+        id:
+          type: string
+          format: uuid
+          title: Id
+        level:
+          type: string
+          enum:
+          - qualified
+          - internal
+          title: Level
+        level_uk:
+          type: string
+          title: Level Uk
+        subject_cn:
+          type: string
+          title: Subject Cn
+        issuer:
+          type: string
+          title: Issuer
+        serial:
+          type: string
+          title: Serial
+        fingerprint_sha256:
+          type: string
+          title: Fingerprint Sha256
+        valid_from:
+          type: string
+          format: date-time
+          title: Valid From
+        valid_to:
+          type: string
+          format: date-time
+          title: Valid To
+        key_format:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Key Format
+        bound_via:
+          type: string
+          title: Bound Via
+        bound_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Bound At
+        revoked_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Revoked At
+        revoke_reason:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Revoke Reason
+        expires_soon:
+          type: boolean
+          title: Expires Soon
+      type: object
+      required:
+      - id
+      - level
+      - level_uk
+      - subject_cn
+      - issuer
+      - serial
+      - fingerprint_sha256
+      - valid_from
+      - valid_to
+      - key_format
+      - bound_via
+      - bound_at
+      - revoked_at
+      - revoke_reason
+      - expires_soon
+      title: KeyBindingView
+    KeyFileRequest:
+      properties:
+        password:
+          type: string
+          maxLength: 128
+          minLength: 12
+          title: Password
+          description: Пароль до файлу-ключа; сервер його не зберігає
+      additionalProperties: false
+      type: object
+      required:
+      - password
+      title: KeyFileRequest
+    KeyRegisterRequest:
+      properties:
+        challenge_token:
+          type: string
+          maxLength: 2048
+          minLength: 20
+          title: Challenge Token
+        signature_base64:
+          type: string
+          maxLength: 400000
+          minLength: 16
+          title: Signature Base64
+          description: CAdES detached над data виклику (віджет ІІТ / Дія.Підпис / keytool)
+        key_format:
+          anyOf:
+          - type: string
+            enum:
+            - jks
+            - pkcs12
+            - key6_dat
+            - token
+            - cloud
+          - type: 'null'
+          title: Key Format
+          description: 'Звідки ключ (довідково): ПриватБанк — jks, Дія/ІІТ — key6_dat або pkcs12'
+      additionalProperties: false
+      type: object
+      required:
+      - challenge_token
+      - signature_base64
+      title: KeyRegisterRequest
+    KeyRevokeRequest:
+      properties:
+        reason:
+          type: string
+          maxLength: 256
+          minLength: 3
+          title: Reason
+      additionalProperties: false
+      type: object
+      required:
+      - reason
+      title: KeyRevokeRequest
+    MockSignature:
+      properties:
+        signature_base64:
+          type: string
+          title: Signature Base64
+        certificate_subject:
+          type: string
+          title: Certificate Subject
+        warning:
+          type: string
+          title: Warning
+          default: 'Імітація КЕП: не має юридичної сили'
+      type: object
+      required:
+      - signature_base64
+      - certificate_subject
+      title: MockSignature
+    PlannedStepView:
+      properties:
+        stage_no:
+          type: integer
+          title: Stage No
+        ordinal:
+          type: integer
+          title: Ordinal
+        title_uk:
+          type: string
+          title: Title Uk
+        step_kind:
+          $ref: '#/components/schemas/StepKind'
+        assignee_id:
+          type: string
+          format: uuid
+          title: Assignee Id
+        assignee_name:
+          type: string
+          title: Assignee Name
+        acting_role:
+          anyOf:
+          - $ref: '#/components/schemas/UserRole'
+          - type: 'null'
+        requires_kep:
+          type: boolean
+          title: Requires Kep
+        is_mandatory:
+          type: boolean
+          title: Is Mandatory
+        deadline_hours:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Deadline Hours
+        will_skip:
+          type: boolean
+          title: Will Skip
+        skip_reason:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Skip Reason
+      type: object
+      required:
+      - stage_no
+      - ordinal
+      - title_uk
+      - step_kind
+      - assignee_id
+      - assignee_name
+      - acting_role
+      - requires_kep
+      - is_mandatory
+      - deadline_hours
+      - will_skip
+      - skip_reason
+      title: PlannedStepView
+    RouteCancel:
+      properties:
+        reason:
+          type: string
+          maxLength: 1024
+          minLength: 3
+          title: Reason
+      additionalProperties: false
+      type: object
+      required:
+      - reason
+      title: RouteCancel
+    RouteCreate:
+      properties:
+        template_code:
+          anyOf:
+          - type: string
+            maxLength: 64
+          - type: 'null'
+          title: Template Code
+          description: Немає — шаблон добирається за видом і підрозділом документа
+        assignee_overrides:
+          items:
+            $ref: '#/components/schemas/AssigneeOverride'
+          type: array
+          maxItems: 50
+          title: Assignee Overrides
+        start:
+          type: boolean
+          title: Start
+          description: Одразу запустити маршрут (перший етап отримає документ)
+          default: true
+        acknowledge_findings:
+          type: boolean
+          title: Acknowledge Findings
+          description: Ініціатор свідомо запускає маршрут попри відкриті критичні зауваження комплаєнсу
+          default: false
+      additionalProperties: false
+      type: object
+      title: RouteCreate
+    RoutePlanView:
+      properties:
+        document_id:
+          type: string
+          format: uuid
+          title: Document Id
+        document_version_id:
+          type: string
+          format: uuid
+          title: Document Version Id
+        template_code:
+          type: string
+          title: Template Code
+        template_version:
+          type: integer
+          title: Template Version
+        template_name:
+          type: string
+          title: Template Name
+        steps:
+          items:
+            $ref: '#/components/schemas/PlannedStepView'
+          type: array
+          title: Steps
+      type: object
+      required:
+      - document_id
+      - document_version_id
+      - template_code
+      - template_version
+      - template_name
+      - steps
+      title: RoutePlanView
+    RouteRequest:
+      properties:
+        template_code:
+          anyOf:
+          - type: string
+            maxLength: 64
+          - type: 'null'
+          title: Template Code
+          description: Немає — шаблон добирається за видом і підрозділом документа
+        assignee_overrides:
+          items:
+            $ref: '#/components/schemas/AssigneeOverride'
+          type: array
+          maxItems: 50
+          title: Assignee Overrides
+      additionalProperties: false
+      type: object
+      title: RouteRequest
+    RouteStart:
+      properties:
+        acknowledge_findings:
+          type: boolean
+          title: Acknowledge Findings
+          default: false
+      additionalProperties: false
+      type: object
+      title: RouteStart
+    RouteStatus:
+      type: string
+      enum:
+      - draft
+      - active
+      - completed
+      - rejected
+      - cancelled
+      title: RouteStatus
+    RouteView:
+      properties:
+        id:
+          type: string
+          format: uuid
+          title: Id
+        document_id:
+          type: string
+          format: uuid
+          title: Document Id
+        document_title:
+          type: string
+          title: Document Title
+        document_version_id:
+          type: string
+          format: uuid
+          title: Document Version Id
+        content_sha256:
+          type: string
+          title: Content Sha256
+        template_code:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Template Code
+        template_version:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Template Version
+        template_name:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Template Name
+        status:
+          $ref: '#/components/schemas/RouteStatus'
+        current_stage:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Current Stage
+        initiated_by_id:
+          type: string
+          format: uuid
+          title: Initiated By Id
+        started_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Started At
+        completed_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Completed At
+        cancel_reason:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Cancel Reason
+        steps:
+          items:
+            $ref: '#/components/schemas/StepView'
+          type: array
+          title: Steps
+        warnings:
+          items:
+            type: string
+          type: array
+          title: Warnings
+      type: object
+      required:
+      - id
+      - document_id
+      - document_title
+      - document_version_id
+      - content_sha256
+      - template_code
+      - template_version
+      - template_name
+      - status
+      - current_stage
+      - initiated_by_id
+      - started_at
+      - completed_at
+      - cancel_reason
+      - steps
+      title: RouteView
+    SignRequest:
+      properties:
+        signature_base64:
+          type: string
+          maxLength: 400000
+          minLength: 16
+          title: Signature Base64
+        provider:
+          $ref: '#/components/schemas/SignatureProvider'
+          default: file_key
+        decision:
+          type: string
+          enum:
+          - approved
+          - approved_with_remarks
+          title: Decision
+          default: approved
+        comment:
+          anyOf:
+          - type: string
+            maxLength: 10000
+          - type: 'null'
+          title: Comment
+      additionalProperties: false
+      type: object
+      required:
+      - signature_base64
+      title: SignRequest
+      description: 'Віза з КЕП: відокремлений CAdES над SHA-256 версії документа (base64 DER).'
+    SignatureProvider:
+      type: string
+      enum:
+      - file_key
+      - hardware_token
+      - cloud_kep
+      - diia_signature
+      title: SignatureProvider
+    SignatureValidation:
+      type: string
+      enum:
+      - pending
+      - valid
+      - invalid
+      - cert_revoked
+      - cert_expired
+      - indeterminate
+      title: SignatureValidation
+    SignatureVerifyRequest:
+      properties:
+        signature_base64:
+          type: string
+          maxLength: 400000
+          minLength: 16
+          title: Signature Base64
+        content_sha256:
+          type: string
+          pattern: ^[0-9a-f]{64}$
+          title: Content Sha256
+      additionalProperties: false
+      type: object
+      required:
+      - signature_base64
+      - content_sha256
+      title: SignatureVerifyRequest
+    SignatureVerifyView:
+      properties:
+        status:
+          $ref: '#/components/schemas/SignatureValidation'
+        level:
+          anyOf:
+          - type: string
+            enum:
+            - qualified
+            - internal
+            - mock
+            - other
+          - type: 'null'
+          title: Level
+        reasons:
+          items:
+            type: string
+          type: array
+          title: Reasons
+        report:
+          additionalProperties: true
+          type: object
+          title: Report
+      type: object
+      required:
+      - status
+      - level
+      - reasons
+      - report
+      title: SignatureVerifyView
+    SignatureView:
+      properties:
+        id:
+          type: string
+          format: uuid
+          title: Id
+        cert_subject_cn:
+          type: string
+          title: Cert Subject Cn
+        cert_serial:
+          type: string
+          title: Cert Serial
+        cert_issuer:
+          type: string
+          title: Cert Issuer
+        signed_at:
+          type: string
+          format: date-time
+          title: Signed At
+        validation_status:
+          $ref: '#/components/schemas/SignatureValidation'
+      type: object
+      required:
+      - id
+      - cert_subject_cn
+      - cert_serial
+      - cert_issuer
+      - signed_at
+      - validation_status
+      title: SignatureView
+    SigningRequestView:
+      properties:
+        step_id:
+          type: string
+          format: uuid
+          title: Step Id
+        document_id:
+          type: string
+          format: uuid
+          title: Document Id
+        document_version_id:
+          type: string
+          format: uuid
+          title: Document Version Id
+        file_name:
+          type: string
+          title: File Name
+        content_sha256:
+          type: string
+          title: Content Sha256
+        digest_algorithm:
+          type: string
+          const: SHA-256
+          title: Digest Algorithm
+          default: SHA-256
+        signature_container:
+          type: string
+          const: CAdES detached (CMS SignedData)
+          title: Signature Container
+          default: CAdES detached (CMS SignedData)
+        accepted_formats:
+          items:
+            type: string
+          type: array
+          title: Accepted Formats
+        not_before:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Not Before
+        accepted_levels:
+          items:
+            type: string
+          type: array
+          title: Accepted Levels
+          description: qualified — КЕП КНЕДП; internal — внутрішній ключ АІ-СЕД ПУЕТ
+        accepted_levels_uk:
+          items:
+            type: string
+          type: array
+          title: Accepted Levels Uk
+      type: object
+      required:
+      - step_id
+      - document_id
+      - document_version_id
+      - file_name
+      - content_sha256
+      - not_before
+      title: SigningRequestView
+      description: 'Що саме підписувати: клієнт (ІІТ / Дія.Підпис) рахує той самий геш над файлом версії.'
+    StepDecision:
+      properties:
+        decision:
+          type: string
+          enum:
+          - approved
+          - approved_with_remarks
+          - rejected
+          title: Decision
+        comment:
+          anyOf:
+          - type: string
+            maxLength: 10000
+          - type: 'null'
+          title: Comment
+      additionalProperties: false
+      type: object
+      required:
+      - decision
+      title: StepDecision
+      description: Рішення людини по кроку. Підписання (КЕП) йде окремим ендпоінтом з контейнером підпису.
+    StepKind:
+      type: string
+      enum:
+      - visa
+      - approval
+      - signing
+      - ratification
+      - acknowledgement
+      - registration
+      title: StepKind
+    StepStatus:
+      type: string
+      enum:
+      - waiting
+      - active
+      - approved
+      - approved_with_remarks
+      - rejected
+      - skipped
+      - delegated
+      - expired
+      title: StepStatus
+    StepView:
+      properties:
+        id:
+          type: string
+          format: uuid
+          title: Id
+        stage_no:
+          type: integer
+          title: Stage No
+        ordinal:
+          type: integer
+          title: Ordinal
+        title_uk:
+          type: string
+          title: Title Uk
+        step_kind:
+          $ref: '#/components/schemas/StepKind'
+        assignee_id:
+          type: string
+          format: uuid
+          title: Assignee Id
+        assignee_name:
+          type: string
+          title: Assignee Name
+        original_assignee_id:
+          anyOf:
+          - type: string
+            format: uuid
+          - type: 'null'
+          title: Original Assignee Id
+        original_assignee_name:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Original Assignee Name
+        acting_role:
+          anyOf:
+          - $ref: '#/components/schemas/UserRole'
+          - type: 'null'
+        status:
+          $ref: '#/components/schemas/StepStatus'
+        is_mandatory:
+          type: boolean
+          title: Is Mandatory
+        requires_kep:
+          type: boolean
+          title: Requires Kep
+        activated_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Activated At
+        due_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Due At
+        decided_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Decided At
+        decision_comment:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Decision Comment
+        is_overdue:
+          type: boolean
+          title: Is Overdue
+        signature:
+          anyOf:
+          - $ref: '#/components/schemas/SignatureView'
+          - type: 'null'
+      type: object
+      required:
+      - id
+      - stage_no
+      - ordinal
+      - title_uk
+      - step_kind
+      - assignee_id
+      - assignee_name
+      - original_assignee_id
+      - original_assignee_name
+      - acting_role
+      - status
+      - is_mandatory
+      - requires_kep
+      - activated_at
+      - due_at
+      - decided_at
+      - decision_comment
+      - is_overdue
+      - signature
+      title: StepView
+    UserRole:
+      type: string
+      enum:
+      - student
+      - lecturer
+      - department_head
+      - institute_director
+      - unit_head
+      - rector
+      - vice_rector
+      - staff
+      - student_government_head
+      title: UserRole
+      description: Функціональні ролі СЕД (джерело — Keycloak realm roles, тут дзеркало з областю дії).
+    ValidationError:
+      properties:
+        loc:
+          items:
+            anyOf:
+            - type: string
+            - type: integer
+          type: array
+          title: Location
+        msg:
+          type: string
+          title: Message
+        type:
+          type: string
+          title: Error Type
+        input:
+          title: Input
+        ctx:
+          type: object
+          title: Context
+      type: object
+      required:
+      - loc
+      - msg
+      - type
+      title: ValidationError
+  securitySchemes:
+    HTTPBearer:
+      type: http
+      description: Access token Keycloak (realm puet)
+      scheme: bearer
+      bearerFormat: JWT

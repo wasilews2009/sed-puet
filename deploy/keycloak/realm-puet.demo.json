@@ -1,0 +1,274 @@
+{
+  "realm": "puet",
+  "enabled": true,
+  "displayName": "ПУЕТ — СЕД",
+  "sslRequired": "external",
+  "accessTokenLifespan": 900,
+  "bruteForceProtected": true,
+  "roles": {
+    "realm": [
+      {
+        "name": "student",
+        "description": "Студент"
+      },
+      {
+        "name": "lecturer",
+        "description": "Викладач"
+      },
+      {
+        "name": "department_head",
+        "description": "Завідувач кафедри"
+      },
+      {
+        "name": "institute_director",
+        "description": "Директор інституту"
+      },
+      {
+        "name": "unit_head",
+        "description": "Керівник структурного підрозділу"
+      },
+      {
+        "name": "rector",
+        "description": "Ректор"
+      },
+      {
+        "name": "vice_rector",
+        "description": "Проректор"
+      },
+      {
+        "name": "staff",
+        "description": "Співробітник"
+      },
+      {
+        "name": "student_government_head",
+        "description": "Голова студентського самоврядування"
+      }
+    ]
+  },
+  "clients": [
+    {
+      "clientId": "sed-web",
+      "name": "СЕД ПУЕТ — веб-інтерфейс",
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "implicitFlowEnabled": false,
+      "redirectUris": [
+        "${SED_PUBLIC_URL}/*"
+      ],
+      "webOrigins": [
+        "${SED_PUBLIC_URL}"
+      ],
+      "attributes": {
+        "pkce.code.challenge.method": "S256",
+        "post.logout.redirect.uris": "${SED_PUBLIC_URL}/*"
+      },
+      "protocolMappers": [
+        {
+          "name": "audience-sed-api",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "config": {
+            "included.custom.audience": "sed-api",
+            "access.token.claim": "true",
+            "id.token.claim": "false"
+          }
+        }
+      ]
+    }
+  ],
+  "users": [
+    {
+      "id": "0fc434f2-30b8-561f-907c-b0fdabc37152",
+      "username": "rector",
+      "email": "rector@demo.puet.local",
+      "emailVerified": true,
+      "firstName": "Олександр",
+      "lastName": "Демченко",
+      "enabled": true,
+      "credentials": [
+        {
+          "type": "password",
+          "value": "demo",
+          "temporary": true
+        }
+      ],
+      "realmRoles": [
+        "rector"
+      ]
+    },
+    {
+      "id": "832166a9-4136-59f7-821b-130db763111c",
+      "username": "vicerector",
+      "email": "vicerector@demo.puet.local",
+      "emailVerified": true,
+      "firstName": "Ірина",
+      "lastName": "Савчук",
+      "enabled": true,
+      "credentials": [
+        {
+          "type": "password",
+          "value": "demo",
+          "temporary": true
+        }
+      ],
+      "realmRoles": [
+        "vice_rector"
+      ]
+    },
+    {
+      "id": "08c90e97-a590-5315-aec4-96cf87a3be04",
+      "username": "director",
+      "email": "director@demo.puet.local",
+      "emailVerified": true,
+      "firstName": "Віктор",
+      "lastName": "Гнатюк",
+      "enabled": true,
+      "credentials": [
+        {
+          "type": "password",
+          "value": "demo",
+          "temporary": true
+        }
+      ],
+      "realmRoles": [
+        "institute_director"
+      ]
+    },
+    {
+      "id": "b74ad905-9003-5228-a3cb-aa010dd38f93",
+      "username": "head.kknit",
+      "email": "head.kknit@demo.puet.local",
+      "emailVerified": true,
+      "firstName": "Наталія",
+      "lastName": "Кравець",
+      "enabled": true,
+      "credentials": [
+        {
+          "type": "password",
+          "value": "demo",
+          "temporary": true
+        }
+      ],
+      "realmRoles": [
+        "department_head",
+        "lecturer"
+      ]
+    },
+    {
+      "id": "82cfe0c3-7d23-5fda-a8a2-abcd5f1a7f2c",
+      "username": "lecturer",
+      "email": "lecturer@demo.puet.local",
+      "emailVerified": true,
+      "firstName": "Андрій",
+      "lastName": "Мельник",
+      "enabled": true,
+      "credentials": [
+        {
+          "type": "password",
+          "value": "demo",
+          "temporary": true
+        }
+      ],
+      "realmRoles": [
+        "lecturer"
+      ]
+    },
+    {
+      "id": "f614f7e8-0d65-5a32-82c3-e9342c708bf1",
+      "username": "student",
+      "email": "student@demo.puet.local",
+      "emailVerified": true,
+      "firstName": "Марія",
+      "lastName": "Бондар",
+      "enabled": true,
+      "credentials": [
+        {
+          "type": "password",
+          "value": "demo",
+          "temporary": true
+        }
+      ],
+      "realmRoles": [
+        "student"
+      ]
+    },
+    {
+      "id": "5240bd9d-36f8-53fc-9887-866c4a48d312",
+      "username": "studgov",
+      "email": "studgov@demo.puet.local",
+      "emailVerified": true,
+      "firstName": "Денис",
+      "lastName": "Ткачук",
+      "enabled": true,
+      "credentials": [
+        {
+          "type": "password",
+          "value": "demo",
+          "temporary": true
+        }
+      ],
+      "realmRoles": [
+        "student",
+        "student_government_head"
+      ]
+    },
+    {
+      "id": "147ef1a8-5baa-5c06-adc1-670e3031abba",
+      "username": "buh",
+      "email": "buh@demo.puet.local",
+      "emailVerified": true,
+      "firstName": "Людмила",
+      "lastName": "Романенко",
+      "enabled": true,
+      "credentials": [
+        {
+          "type": "password",
+          "value": "demo",
+          "temporary": true
+        }
+      ],
+      "realmRoles": [
+        "unit_head"
+      ]
+    },
+    {
+      "id": "bcbf18e0-3441-5bf3-99ec-5c5599c0fa6e",
+      "username": "pfv",
+      "email": "pfv@demo.puet.local",
+      "emailVerified": true,
+      "firstName": "Тетяна",
+      "lastName": "Литвин",
+      "enabled": true,
+      "credentials": [
+        {
+          "type": "password",
+          "value": "demo",
+          "temporary": true
+        }
+      ],
+      "realmRoles": [
+        "unit_head"
+      ]
+    },
+    {
+      "id": "541ca05f-6f71-54a6-be31-61ea985bc2fb",
+      "username": "clerk",
+      "email": "clerk@demo.puet.local",
+      "emailVerified": true,
+      "firstName": "Оксана",
+      "lastName": "Павленко",
+      "enabled": true,
+      "credentials": [
+        {
+          "type": "password",
+          "value": "demo",
+          "temporary": true
+        }
+      ],
+      "realmRoles": [
+        "staff"
+      ]
+    }
+  ]
+}

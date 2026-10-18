@@ -1,0 +1,11 @@
+# ЛИШЕ ДЛЯ ПЕРЕВІРКИ В ІЗОЛЬОВАНОМУ СЕРЕДОВИЩІ: дзеркала образів і заглушка LLM/ембедингів.
+services:
+  minio: {image: pgsty/minio:latest}
+  keycloak: {image: "keycloak/keycloak:26.0.7"}
+  embeddings:
+    image: local/llm-stub
+    command: ["uvicorn", "stub:app", "--host", "0.0.0.0", "--port", "80"]
+  llm-stub:
+    image: local/llm-stub
+    networks:
+      default: {aliases: [llm]}

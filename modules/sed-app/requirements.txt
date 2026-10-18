@@ -1,0 +1,12 @@
+# Застосунок збирає модулі-сусіди; їхні залежності підтягуються звідси.
+# Шляхи відносні: встановлюйте з каталогу sed-app (або див. Dockerfile).
+-r ../db-schema/requirements.txt
+-r ../ingest-pipeline/requirements.txt
+-r ../rag-compliance/requirements.txt
+-r ../approval-routing/requirements.txt
+fastapi>=0.115
+uvicorn[standard]>=0.30
+pydantic-settings>=2.3
+pyjwt[crypto]>=2.9
+# лише для тестів
+pytest-asyncio>=0.24

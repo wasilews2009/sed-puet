@@ -1,0 +1,14 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html { font-size: 15px; }
+  a { @apply text-brand-700 underline-offset-2 hover:underline dark:text-brand-100; }
+  :focus-visible { @apply outline outline-2 outline-offset-2 outline-brand-600; }
+  blockquote { @apply border-l-4 border-slate-300 pl-3 italic text-slate-700 dark:border-slate-600 dark:text-slate-300; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+}
