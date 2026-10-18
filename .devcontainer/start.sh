@@ -30,6 +30,8 @@ URL="$(sed -n 's/^SED_PUBLIC_URL=//p' .env)"
 cat <<MSG
 
   СЕД ПУЕТ запущено: $URL  (вкладка Ports → 8080)
+  Якщо браузер показує HTTP ERROR 401: Ports → правою кнопкою на 8080 → Port Visibility → Public
+  (стенд стане доступним кожному, хто знає адресу; після показу поверніть Private або зупиніть codespace).
   Вхід: «Увійти через SSO ПУЕТ», демо-користувачі rector, vicerector, director, lecturer, clerk …, пароль demo.
   Індексація нормативного корпусу: .devcontainer/corpus-index.log
 

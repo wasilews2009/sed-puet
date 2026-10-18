@@ -2,6 +2,7 @@
 
 Стек запускається автоматично (`setup.sh` після створення, `start.sh` при кожному старті codespace).
 Коли в терміналі з'явиться «СЕД ПУЕТ запущено», відкрийте вкладку **Ports** → порт **8080** (значок глобуса).
+Якщо браузер показує HTTP ERROR 401 — правою кнопкою на 8080 → Port Visibility → Public (на час показу; потім поверніть Private).
 
 * Вхід: «Увійти через SSO ПУЕТ», логін `rector`, `vicerector`, `director`, `head.kknit`, `lecturer`, `student`,
   `studgov`, `buh`, `pfv` або `clerk`, пароль `demo`.
